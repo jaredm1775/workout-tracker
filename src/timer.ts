@@ -15,8 +15,12 @@ export function elapsedSeconds(startedAt: number, now = Date.now()): number {
 export function formatClock(totalSeconds: number): string {
   const sign = totalSeconds < 0 ? "+" : "";
   const abs = Math.abs(totalSeconds);
-  const minutes = Math.floor(abs / 60);
+  const hours = Math.floor(abs / 3600);
+  const minutes = Math.floor((abs % 3600) / 60);
   const seconds = abs % 60;
+  if (hours > 0) {
+    return `${sign}${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
   return `${sign}${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 

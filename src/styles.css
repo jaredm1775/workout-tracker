@@ -193,15 +193,41 @@ h3 {
   color: var(--text);
 }
 
-.timer-bar {
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.workout-sticky {
   position: sticky;
   top: 8px;
   z-index: 5;
+  margin-bottom: 12px;
+}
+
+.session-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.session-clock {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.timer-bar {
   background: #10231f;
   border: 1px solid var(--accent-dim);
   border-radius: 16px;
   padding: 12px;
-  margin-bottom: 12px;
 }
 
 .timer-clock {

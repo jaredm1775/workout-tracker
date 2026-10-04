@@ -38,6 +38,7 @@ export interface LoggedSet {
 
 export interface Workout {
   id: string;
+  profileId: string;
   dayId: string;
   date: string;
   startedAt: string;

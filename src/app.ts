@@ -1,6 +1,7 @@
-import program from "../data/program.json";
-import milestoneCatalog from "../data/milestones.json";
+import program from "../data/jared/program.json";
+import milestoneCatalog from "../data/jared/milestones.json";
 import {
+  deleteWorkout,
   exportBackup,
   getMilestoneState,
   getSettings,
@@ -13,6 +14,7 @@ import {
   saveWorkout,
   type BackupPayload,
 } from "./db";
+import { profileById, resolveProfileId } from "./profiles";
 import {
   formatLastSession,
   lastWeight,
@@ -46,6 +48,8 @@ interface DraftSet {
   reps: number;
 }
 
+let profileId = resolveProfileId();
+let profile = profileById(profileId);
 let view: View = "today";
 let settings: Settings;
 let workouts: Workout[] = [];
@@ -69,15 +73,40 @@ function visible(): Day[] {
   return visibleDays(days, settings.weekMode);
 }
 
+function sessionElapsed(): number {
+  if (!activeWorkout) return 0;
+  return elapsedSeconds(Date.parse(activeWorkout.startedAt));
+}
+
+function updateClocks(): void {
+  const sessionEl = root.querySelector("[data-session-clock]");
+  if (sessionEl && activeWorkout) {
+    sessionEl.textContent = formatClock(sessionElapsed());
+  }
+  if (!rest) return;
+  const left = remainingSeconds(rest);
+  if (left <= 0 && !lastTimerZero) {
+    lastTimerZero = true;
+    vibrateDone();
+  }
+  const restEl = root.querySelector("[data-rest-clock]");
+  if (restEl) {
+    restEl.textContent = formatClock(left);
+    restEl.classList.toggle("over", left < 0);
+  }
+}
+
 async function refresh(): Promise<void> {
-  settings = await getSettings();
-  workouts = await listWorkouts();
-  milestones = mergeMilestones(catalog, await getMilestoneState());
+  profileId = resolveProfileId();
+  profile = profileById(profileId);
+  settings = await getSettings(profileId);
+  workouts = await listWorkouts(profileId);
+  milestones = mergeMilestones(catalog, await getMilestoneState(profileId));
   if (settings.activeWorkoutId) {
-    activeWorkout = (await getWorkout(settings.activeWorkoutId)) ?? null;
+    activeWorkout = (await getWorkout(profileId, settings.activeWorkoutId)) ?? null;
     if (!activeWorkout) {
       settings.activeWorkoutId = null;
-      await saveSettings(settings);
+      await saveSettings(profileId, settings);
     }
   } else {
     activeWorkout = null;
@@ -87,6 +116,8 @@ async function refresh(): Promise<void> {
       startedAt: Date.parse(settings.restStartedAt),
       prescribed: settings.restPrescribed,
     };
+  } else {
+    rest = null;
   }
   seedDrafts();
 }
@@ -112,7 +143,7 @@ function seedDrafts(): void {
 async function persistRest(): Promise<void> {
   settings.restStartedAt = rest ? new Date(rest.startedAt).toISOString() : null;
   settings.restPrescribed = rest?.prescribed ?? null;
-  await saveSettings(settings);
+  await saveSettings(profileId, settings);
 }
 
 async function startRest(prescribed: number): Promise<void> {
@@ -141,6 +172,7 @@ function restForNextSet(): number | undefined {
 async function startWorkout(dayId: string): Promise<void> {
   const workout: Workout = {
     id: newId(),
+    profileId,
     dayId,
     date: todayDate(),
     startedAt: new Date().toISOString(),
@@ -149,7 +181,8 @@ async function startWorkout(dayId: string): Promise<void> {
   activeWorkout = workout;
   settings.activeWorkoutId = workout.id;
   await saveWorkout(workout);
-  await saveSettings(settings);
+  await saveSettings(profileId, settings);
+  workouts = [workout, ...workouts.filter((item) => item.id !== workout.id)];
   seedDrafts();
   view = "workout";
   render();
@@ -188,11 +221,41 @@ async function finishWorkout(): Promise<void> {
   activeWorkout.finishedAt = new Date().toISOString();
   await saveWorkout(activeWorkout);
   settings.activeWorkoutId = null;
-  await saveSettings(settings);
+  await saveSettings(profileId, settings);
   await clearRest();
   activeWorkout = null;
   view = "today";
-  workouts = await listWorkouts();
+  workouts = await listWorkouts(profileId);
+  render();
+}
+
+async function clearActiveSession(): Promise<void> {
+  settings.activeWorkoutId = null;
+  await saveSettings(profileId, settings);
+  await clearRest();
+  activeWorkout = null;
+  drafts = {};
+  workouts = await listWorkouts(profileId);
+}
+
+async function cancelWorkout(): Promise<void> {
+  if (!activeWorkout) return;
+  if (!confirm("Discard this workout? It will not be saved.")) return;
+  await deleteWorkout(activeWorkout.id);
+  await clearActiveSession();
+  view = "today";
+  render();
+}
+
+async function removeHistoryWorkout(id: string): Promise<void> {
+  if (!confirm("Delete this workout? It will be removed from history.")) return;
+  const wasActive = settings.activeWorkoutId === id || activeWorkout?.id === id;
+  await deleteWorkout(id);
+  if (wasActive) {
+    await clearActiveSession();
+  } else {
+    workouts = await listWorkouts(profileId);
+  }
   render();
 }
 
@@ -204,15 +267,11 @@ function lastFinishedDayId(): string | null {
 function renderTimer(): string {
   if (!rest) return "";
   const left = remainingSeconds(rest);
-  if (left <= 0 && !lastTimerZero) {
-    lastTimerZero = true;
-    vibrateDone();
-  }
   const clockClass = left < 0 ? "over" : "";
   return `
     <section class="timer-bar">
       <div class="muted">Rest</div>
-      <div class="timer-clock ${clockClass}">${formatClock(left)}</div>
+      <div class="timer-clock ${clockClass}" data-rest-clock>${formatClock(left)}</div>
       <div class="muted">Target ${formatClock(rest.prescribed)}</div>
       <div class="timer-actions">
         <button data-action="rest-minus">-15s</button>
@@ -306,14 +365,23 @@ function renderWorkout(): string {
   const day = dayById(activeWorkout.dayId);
   if (!day) return `<section class="card">Unknown day.</section>`;
   return `
-    ${renderTimer()}
+    <div class="workout-sticky">
+      <section class="session-bar">
+        <div class="muted">Session</div>
+        <div class="session-clock" data-session-clock>${formatClock(sessionElapsed())}</div>
+      </section>
+      ${renderTimer()}
+    </div>
     <section class="card">
       <div class="row">
         <div>
           <div class="muted">${day.focus}</div>
           <h2>${day.name}</h2>
         </div>
-        <button data-action="finish">Finish</button>
+        <div class="row-actions">
+          <button class="danger" data-action="cancel">Cancel</button>
+          <button data-action="finish">Finish</button>
+        </div>
       </div>
     </section>
     ${day.exercises
@@ -335,6 +403,12 @@ function renderWorkout(): string {
   `;
 }
 
+function historyMeta(workout: Workout): string {
+  if (!workout.finishedAt) return `${workout.date} · in progress`;
+  const duration = formatClock(elapsedSeconds(Date.parse(workout.startedAt), Date.parse(workout.finishedAt)));
+  return `${workout.date} · ${duration}`;
+}
+
 function renderHistory(): string {
   if (!workouts.length) {
     return `<section class="card">No workouts yet. Log a session and it will show up here.</section>`;
@@ -346,14 +420,19 @@ function renderHistory(): string {
         .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId) || a.setIndex - b.setIndex)
         .map((set) => {
           const exercise = days.flatMap((item) => item.exercises).find((item) => item.id === set.exerciseId);
-          const rest = set.restSeconds != null ? ` · rest ${formatClock(set.restSeconds)}` : "";
-          return `<div class="muted">${exercise?.name ?? set.exerciseId}: ${set.weight} × ${set.reps}${rest}</div>`;
+          const restLabel = set.restSeconds != null ? ` · rest ${formatClock(set.restSeconds)}` : "";
+          return `<div class="muted">${exercise?.name ?? set.exerciseId}: ${set.weight} × ${set.reps}${restLabel}</div>`;
         })
         .join("");
       return `
         <section class="card">
-          <div class="muted">${workout.date}${workout.finishedAt ? "" : " · in progress"}</div>
-          <h3>${day?.name ?? workout.dayId}</h3>
+          <div class="row">
+            <div>
+              <div class="muted">${historyMeta(workout)}</div>
+              <h3>${day?.name ?? workout.dayId}</h3>
+            </div>
+            <button class="danger" data-delete-workout="${workout.id}">Delete</button>
+          </div>
           ${setLines || `<div class="muted">No sets logged.</div>`}
         </section>
       `;
@@ -404,8 +483,8 @@ function render(): void {
   };
   root.innerHTML = `
     <header class="topbar">
-      <div class="brand">PPL <span>Tracker</span></div>
-      <div class="muted">${titles[view]}</div>
+      <div class="brand">Workout <span>Tracker</span></div>
+      <div class="muted">${profile.name} · ${titles[view]}</div>
     </header>
     <nav class="nav">
       <button data-view="today" class="${view === "today" || view === "workout" ? "active" : ""}">Train</button>
@@ -425,6 +504,7 @@ function render(): void {
               : renderBackup()
     }
   `;
+  updateClocks();
 }
 
 function bind(): void {
@@ -441,7 +521,7 @@ function bind(): void {
 
     if (target.dataset.week) {
       settings.weekMode = target.dataset.week === "5day" ? "5day" : "6day";
-      await saveSettings(settings);
+      await saveSettings(profileId, settings);
       render();
       return;
     }
@@ -461,6 +541,16 @@ function bind(): void {
       return;
     }
 
+    if (target.dataset.action === "cancel") {
+      await cancelWorkout();
+      return;
+    }
+
+    if (target.dataset.deleteWorkout) {
+      await removeHistoryWorkout(target.dataset.deleteWorkout);
+      return;
+    }
+
     if (target.dataset.action === "rest-minus" && rest) {
       rest.prescribed = Math.max(15, rest.prescribed - 15);
       await persistRest();
@@ -476,12 +566,7 @@ function bind(): void {
     }
 
     if (target.dataset.action === "rest-skip") {
-      rest = null;
-      lastTimerZero = false;
-      if (wakeLock) {
-        await wakeLock.release().catch(() => undefined);
-        wakeLock = null;
-      }
+      await clearRest();
       render();
       return;
     }
@@ -511,19 +596,19 @@ function bind(): void {
     if (target.dataset.goal) {
       const state = Object.fromEntries(milestones.map((item) => [item.id, item.done]));
       state[target.dataset.goal] = !state[target.dataset.goal];
-      await saveMilestoneState(state);
+      await saveMilestoneState(profileId, state);
       milestones = mergeMilestones(catalog, state);
       render();
       return;
     }
 
     if (target.dataset.action === "export") {
-      const payload = await exportBackup();
+      const payload = await exportBackup(profileId);
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `ppl-backup-${todayDate()}.json`;
+      link.download = `workout-backup-${todayDate()}.json`;
       link.click();
       URL.revokeObjectURL(url);
       return;
@@ -538,12 +623,16 @@ function bind(): void {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
     if (target.id === "import-file" && target.files?.[0]) {
-      const text = await target.files[0].text();
-      const payload = JSON.parse(text) as BackupPayload;
-      await importBackup(payload);
-      await refresh();
-      view = "history";
-      render();
+      try {
+        const text = await target.files[0].text();
+        const payload = JSON.parse(text) as BackupPayload;
+        await importBackup(payload);
+        await refresh();
+        view = "history";
+        render();
+      } catch {
+        window.alert("That file is not a valid Workout Tracker backup.");
+      }
       return;
     }
     const row = target.closest(".set-row");
@@ -562,6 +651,12 @@ export async function startApp(): Promise<void> {
   render();
   window.clearInterval(timerHandle);
   timerHandle = window.setInterval(() => {
-    if (view === "workout" && rest) render();
+    if (view === "workout") updateClocks();
   }, 1000);
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && view === "workout") updateClocks();
+  });
+  window.addEventListener("pageshow", () => {
+    if (view === "workout") updateClocks();
+  });
 }

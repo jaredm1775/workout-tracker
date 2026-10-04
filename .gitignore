@@ -5,3 +5,6 @@ dist
 dev-dist
 .vscode
 .idea
+*-backup-*.json
+ppl-backup-*.json
+workout-backup-*.json

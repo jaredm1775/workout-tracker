@@ -14,7 +14,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $user = gh api user --jq .login
-$repo = "ppl-tracker"
+$repo = "workout-tracker"
 $full = "$user/$repo"
 
 if (gh repo view $full 2>$null) {
@@ -35,6 +35,6 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "Repo: https://github.com/$full"
 Write-Host "Live site after the Actions deploy finishes:"
-Write-Host "  https://$user.github.io/ppl-tracker/"
+Write-Host "  https://$user.github.io/workout-tracker/"
 Write-Host ""
 Write-Host "On your phone: open that URL once, then Add to Home Screen."
