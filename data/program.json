@@ -1,0 +1,427 @@
+{
+  "name": "Commercial gym PPL",
+  "unit": "lb",
+  "days": [
+    {
+      "id": "push-a",
+      "name": "Push A",
+      "focus": "Chest",
+      "exercises": [
+        {
+          "id": "bench-press",
+          "name": "Barbell bench press",
+          "sets": 4,
+          "repMin": 5,
+          "repMax": 8,
+          "restSeconds": 180,
+          "incrementLb": 5,
+          "notes": "Last set stays at 1–2 RIR. Add load only when every set hits 8."
+        },
+        {
+          "id": "incline-db-press",
+          "name": "Incline dumbbell press",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "machine-shoulder-press",
+          "name": "Machine shoulder press",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "lateral-raise-a",
+          "name": "Dumbbell lateral raise",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5,
+          "notes": "No swing. Soft elbows."
+        },
+        {
+          "id": "cable-fly",
+          "name": "Cable fly",
+          "sets": 2,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "triceps-pushdown-a",
+          "name": "Triceps pushdown",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "overhead-triceps-a",
+          "name": "Overhead cable triceps extension",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        }
+      ]
+    },
+    {
+      "id": "pull-a",
+      "name": "Pull A",
+      "focus": "Vertical / width",
+      "exercises": [
+        {
+          "id": "lat-pulldown-a",
+          "name": "Lat pulldown or weighted pull-up",
+          "sets": 4,
+          "repMin": 6,
+          "repMax": 10,
+          "restSeconds": 150,
+          "incrementLb": 5,
+          "notes": "Use pull-ups if you can do 6+ clean reps."
+        },
+        {
+          "id": "chest-supported-row-a",
+          "name": "Chest-supported row",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "seated-cable-row",
+          "name": "Seated cable row",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5
+        },
+        {
+          "id": "face-pull-a",
+          "name": "Face pull",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "rear-delt-fly",
+          "name": "Rear delt fly",
+          "sets": 2,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "ez-curl",
+          "name": "EZ-bar curl",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 75,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "incline-curl",
+          "name": "Incline dumbbell curl",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        }
+      ]
+    },
+    {
+      "id": "legs-a",
+      "name": "Legs A",
+      "focus": "Squat",
+      "exercises": [
+        {
+          "id": "back-squat",
+          "name": "Back squat",
+          "sets": 4,
+          "repMin": 5,
+          "repMax": 8,
+          "restSeconds": 180,
+          "incrementLb": 10,
+          "notes": "Brace hard. Add load only when every set hits 8 at 1–2 RIR."
+        },
+        {
+          "id": "leg-press",
+          "name": "Leg press",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 10
+        },
+        {
+          "id": "rdl-a",
+          "name": "Romanian deadlift",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 150,
+          "incrementLb": 10
+        },
+        {
+          "id": "leg-extension-a",
+          "name": "Leg extension",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
+          "incrementLb": 5
+        },
+        {
+          "id": "lying-leg-curl",
+          "name": "Lying leg curl",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
+          "incrementLb": 5
+        },
+        {
+          "id": "standing-calf",
+          "name": "Standing calf raise",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 10
+        }
+      ]
+    },
+    {
+      "id": "push-b",
+      "name": "Push B",
+      "focus": "Shoulders / triceps",
+      "exercises": [
+        {
+          "id": "overhead-press",
+          "name": "Overhead press",
+          "sets": 4,
+          "repMin": 5,
+          "repMax": 8,
+          "restSeconds": 180,
+          "incrementLb": 5
+        },
+        {
+          "id": "incline-press-b",
+          "name": "Incline barbell or machine press",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "dips-or-cg-bench",
+          "name": "Dips or close-grip bench",
+          "sets": 3,
+          "repMin": 6,
+          "repMax": 10,
+          "restSeconds": 120,
+          "incrementLb": 5,
+          "notes": "Use an assisted dip machine if needed."
+        },
+        {
+          "id": "lateral-raise-b",
+          "name": "Dumbbell or cable lateral raise",
+          "sets": 4,
+          "repMin": 12,
+          "repMax": 20,
+          "restSeconds": 45,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "pec-deck",
+          "name": "Pec deck",
+          "sets": 2,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 5
+        },
+        {
+          "id": "skullcrusher",
+          "name": "Skullcrusher",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 75,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "triceps-pushdown-b",
+          "name": "Triceps pushdown",
+          "sets": 2,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        }
+      ]
+    },
+    {
+      "id": "pull-b",
+      "name": "Pull B",
+      "focus": "Thickness",
+      "exercises": [
+        {
+          "id": "barbell-row-b",
+          "name": "Barbell or chest-supported row",
+          "sets": 4,
+          "repMin": 6,
+          "repMax": 10,
+          "restSeconds": 150,
+          "incrementLb": 5
+        },
+        {
+          "id": "pulldown-b",
+          "name": "Neutral-grip pulldown",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "single-arm-row",
+          "name": "Single-arm dumbbell row",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5,
+          "laterality": "per_side"
+        },
+        {
+          "id": "face-pull-b",
+          "name": "Face pull",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "hammer-curl",
+          "name": "Hammer curl",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 75,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "preacher-curl",
+          "name": "Preacher or bayesian curl",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "shrug",
+          "name": "Dumbbell shrug",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 5,
+          "notes": "Optional. Skip if the session runs long."
+        }
+      ]
+    },
+    {
+      "id": "legs-b",
+      "name": "Legs B",
+      "focus": "Hinge / unilateral",
+      "exercises": [
+        {
+          "id": "hinge-b",
+          "name": "Romanian or trap-bar deadlift",
+          "sets": 3,
+          "repMin": 5,
+          "repMax": 8,
+          "restSeconds": 180,
+          "incrementLb": 10
+        },
+        {
+          "id": "bulgarian-or-lunge",
+          "name": "Bulgarian split squat or walking lunge",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 8,
+          "restSeconds": 120,
+          "incrementLb": 5,
+          "laterality": "per_side",
+          "notes": "8 per side. Stay at 2 RIR."
+        },
+        {
+          "id": "hack-or-goblet",
+          "name": "Hack squat or goblet squat",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "seated-leg-curl",
+          "name": "Seated leg curl",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
+          "incrementLb": 5
+        },
+        {
+          "id": "leg-extension-b",
+          "name": "Leg extension",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 5
+        },
+        {
+          "id": "seated-calf",
+          "name": "Seated calf raise",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 10
+        },
+        {
+          "id": "core-b",
+          "name": "Plank or hanging knee raise",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 45,
+          "incrementLb": 0,
+          "notes": "For planks, log seconds in the reps field."
+        }
+      ]
+    }
+  ]
+}

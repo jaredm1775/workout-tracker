@@ -1,0 +1,50 @@
+[
+  {
+    "id": "bench-185x5",
+    "lift": "Barbell bench press",
+    "target": "185 lb × 5",
+    "done": false
+  },
+  {
+    "id": "bench-225x5",
+    "lift": "Barbell bench press",
+    "target": "225 lb × 5",
+    "done": false
+  },
+  {
+    "id": "ohp-135x5",
+    "lift": "Overhead press",
+    "target": "135 lb × 5",
+    "done": false
+  },
+  {
+    "id": "squat-225x5",
+    "lift": "Back squat",
+    "target": "225 lb × 5",
+    "done": false
+  },
+  {
+    "id": "squat-275x5",
+    "lift": "Back squat",
+    "target": "275 lb × 5",
+    "done": false
+  },
+  {
+    "id": "rdl-225x8",
+    "lift": "Romanian deadlift",
+    "target": "225 lb × 8",
+    "done": false
+  },
+  {
+    "id": "row-185x8",
+    "lift": "Barbell or chest-supported row",
+    "target": "185 lb × 8",
+    "done": false
+  },
+  {
+    "id": "pulldown-bodyweight-8",
+    "lift": "Lat pulldown or weighted pull-up",
+    "target": "8 clean pull-ups or pulldown at bodyweight × 8",
+    "done": false
+  }
+]
