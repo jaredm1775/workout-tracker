@@ -2,7 +2,19 @@
 
 Phone-first push / pull / legs logger. The written program lives in this repo. Your weights, reps, and rest times stay on the phone until you export a backup.
 
-Live site (after GitHub Pages deploy): https://\<your-github-username\>.github.io/ppl-tracker/
+Live site (after GitHub Pages deploy): `https://<your-github-username>.github.io/ppl-tracker/`
+
+## Connect GitHub and publish
+
+The tracker is its own git repo in this folder. It does not publish the rest of `cursor_workspace`.
+
+1. Install [GitHub CLI](https://cli.github.com/) if `gh` is not already on your PATH.
+2. Log in: `gh auth login --hostname github.com --git-protocol https --web`
+3. From this folder run `powershell -File scripts/publish.ps1`
+
+That creates the public `ppl-tracker` repo, pushes `main`, and turns on GitHub Pages. The first deploy takes a minute. Then open:
+
+`https://<your-github-username>.github.io/ppl-tracker/`
 
 ## Use on your phone
 
