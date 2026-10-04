@@ -29,6 +29,8 @@ body {
 
 body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  font-size: 17px;
+  line-height: 1.45;
 }
 
 button,
@@ -41,8 +43,8 @@ button {
   border-radius: 12px;
   background: var(--bg-card);
   color: var(--text);
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 48px;
+  padding: 0 16px;
 }
 
 button:active {
@@ -52,31 +54,42 @@ button:active {
 #app {
   max-width: 720px;
   margin: 0 auto;
-  padding: 16px 16px 120px;
+  padding: 18px 18px 128px;
 }
 
 .topbar {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.topbar-row {
+  display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .brand {
   font-weight: 700;
   letter-spacing: 0.04em;
+  font-size: 1.05rem;
 }
 
 .brand span {
   color: var(--accent);
 }
 
+.profile-toggle {
+  width: 100%;
+}
+
 .nav {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 18px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .nav button {
@@ -84,7 +97,8 @@ button:active {
   color: var(--muted);
 }
 
-.nav button.active {
+.nav button.active,
+.active-ghost {
   background: var(--accent-dim);
   color: var(--text);
 }
@@ -93,8 +107,8 @@ button:active {
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
   box-shadow: var(--shadow);
 }
 
@@ -110,15 +124,18 @@ h3 {
 
 .day-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .chip {
-  min-height: 56px;
+  min-height: 72px;
   text-align: left;
   background: var(--bg-card);
   border: 1px solid var(--line);
+  padding: 14px 16px;
+  font-size: 1.05rem;
 }
 
 .chip.suggested {
@@ -129,6 +146,8 @@ h3 {
 .chip small {
   display: block;
   color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
 }
 
 .primary {
@@ -136,56 +155,90 @@ h3 {
   background: var(--accent);
   color: #06241c;
   font-weight: 700;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.week-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .exercise {
-  padding-bottom: 8px;
+  padding-bottom: 10px;
+}
+
+.day-notes {
+  margin: 12px 0 0;
 }
 
 .set-row {
-  display: grid;
-  grid-template-columns: 44px 1fr 1fr auto;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.set-row-head {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  margin: 10px 0;
+  gap: 12px;
+}
+
+.set-label {
+  font-weight: 700;
+}
+
+.stepper-field {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  gap: 12px;
 }
 
 .stepper {
   display: grid;
-  grid-template-columns: 40px 1fr 40px;
-  gap: 4px;
+  grid-template-columns: 48px 1fr 48px;
+  gap: 8px;
   align-items: center;
 }
 
 .stepper button {
-  min-height: 40px;
+  min-height: 48px;
+  min-width: 48px;
   padding: 0;
   background: #24303a;
 }
 
 .stepper input {
   width: 100%;
-  min-height: 40px;
+  min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #0f151b;
   color: var(--text);
   text-align: center;
+  font-size: 1.1rem;
 }
 
 .done {
   background: var(--accent);
   color: #06241c;
   font-weight: 700;
-  min-width: 64px;
+  min-width: 88px;
 }
 
 .done.complete {
@@ -197,6 +250,11 @@ h3 {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  width: 100%;
+}
+
+.row-actions button {
+  flex: 1;
 }
 
 .workout-sticky {
@@ -213,12 +271,12 @@ h3 {
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   margin-bottom: 8px;
 }
 
 .session-clock {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
@@ -227,7 +285,7 @@ h3 {
   background: #10231f;
   border: 1px solid var(--accent-dim);
   border-radius: 16px;
-  padding: 12px;
+  padding: 14px;
 }
 
 .timer-clock {
@@ -270,21 +328,6 @@ h3 {
   margin-bottom: 8px;
 }
 
-.goal {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  width: 100%;
-  text-align: left;
-  padding: 12px;
-}
-
-.goal input {
-  width: 22px;
-  height: 22px;
-  margin-top: 4px;
-}
-
 .danger {
   background: #3a1d22;
   color: #ffd6d8;
@@ -294,22 +337,130 @@ h3 {
   display: none;
 }
 
-.week-dots {
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.week-day {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 8px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 8px 0;
+  border-radius: 14px;
+  background: var(--bg-card);
 }
 
-.dot {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #24303a;
-  color: var(--muted);
-  font-size: 0.85rem;
+.week-day.today {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.dot.hit {
+.week-day.hit {
   background: var(--accent-dim);
-  color: var(--text);
+}
+
+.week-dow {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.week-num {
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.month-nav {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-nav h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.month-nav button {
+  padding: 0;
+  font-size: 1.4rem;
+}
+
+.cal-stats {
+  margin: 12px 0 4px;
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.month-dow {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 6px 0;
+}
+
+.month-cell {
+  aspect-ratio: 1;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.month-cell.empty {
+  visibility: hidden;
+}
+
+.month-cell.hit {
+  background: var(--accent-dim);
+}
+
+.month-cell.selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.month-cell.today:not(.selected) {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.month-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.month-dot.spacer {
+  background: transparent;
+}
+
+.cal-detail + .cal-detail {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 520px) {
+  .day-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .row-actions {
+    width: auto;
+  }
 }

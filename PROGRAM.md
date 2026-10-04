@@ -12,7 +12,7 @@ This is general training guidance, not medical advice. Skip or substitute anythi
 - Use **double progression**: when every working set hits the top of the rep range at the target RIR, add the smallest practical plate and return to the bottom of the range.
 - Typical jumps: **+5 lb** on upper-body compounds, **+10 lb** on squats and hinges, **+2.5 lb** on isolation.
 - After week 1, the app’s “Next” weight is the last working load, or that load plus the increment if you earned it.
-- Do not chase gym-max singles. Milestone checkboxes are working-set goals.
+- Do not chase gym-max singles. Log working sets you can repeat.
 
 ## Weekly layout
 
@@ -114,5 +114,5 @@ Every fifth week, or whenever joints feel beat up: do 2 working sets instead of 
 2. Enter weight and reps. Tap **Done** on each set.
 3. The rest timer starts automatically. Use −15 / +15 or Skip. Actual rest is stored on the next set.
 4. Tap **Finish** when the session is done.
-5. Check milestone goals when you actually hit them.
+5. Use Calendar to see which days you trained this week and this month.
 6. Export JSON from Backup if you want a copy for Cursor. That file is private unless you put it in the public repo.

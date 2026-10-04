@@ -1,20 +1,29 @@
-import program from "../data/jared/program.json";
-import milestoneCatalog from "../data/jared/milestones.json";
+import jaredProgram from "../data/jared/program.json";
+import wendyProgram from "../data/wendy/program.json";
+import {
+  finishedWorkoutsByDate,
+  formatDateKey,
+  formatMonthTitle,
+  formatWeekRange,
+  monthCells,
+  parseDateKey,
+  shiftMonth,
+  uniqueFinishedDates,
+  weekDates,
+  WEEKDAY_LETTERS,
+} from "./calendar";
 import {
   deleteWorkout,
   exportBackup,
-  getMilestoneState,
   getSettings,
   getWorkout,
   importBackup,
   listWorkouts,
-  mergeMilestones,
-  saveMilestoneState,
   saveSettings,
   saveWorkout,
   type BackupPayload,
 } from "./db";
-import { profileById, resolveProfileId } from "./profiles";
+import { PROFILES, resolveProfileId } from "./profiles";
 import {
   formatLastSession,
   lastWeight,
@@ -33,15 +42,17 @@ import {
   vibrateDone,
   type RestTimerState,
 } from "./timer";
-import type { Day, Exercise, Milestone, Settings, View, Workout } from "./types";
+import type { Day, Exercise, Program, Settings, View, Workout } from "./types";
 import "./styles.css";
 
 const rootEl = document.querySelector<HTMLDivElement>("#app");
 if (!rootEl) throw new Error("Missing #app");
 const root = rootEl;
 
-const days = program.days as Day[];
-const catalog = milestoneCatalog as Milestone[];
+const PROGRAMS: Record<string, Program> = {
+  jared: jaredProgram as Program,
+  wendy: wendyProgram as Program,
+};
 
 interface DraftSet {
   weight: number;
@@ -49,28 +60,48 @@ interface DraftSet {
 }
 
 let profileId = resolveProfileId();
-let profile = profileById(profileId);
 let view: View = "today";
 let settings: Settings;
 let workouts: Workout[] = [];
-let milestones: Milestone[] = [];
 let activeWorkout: Workout | null = null;
 let drafts: Record<string, DraftSet> = {};
 let rest: RestTimerState | null = null;
 let wakeLock: WakeLockSentinel | null = null;
 let lastTimerZero = false;
 let timerHandle = 0;
+const now = new Date();
+let calendarYear = now.getFullYear();
+let calendarMonth = now.getMonth();
+let selectedCalendarDate = todayDate();
+
+function currentProgram(): Program {
+  return PROGRAMS[profileId] ?? PROGRAMS.jared;
+}
+
+function days(): Day[] {
+  return currentProgram().days;
+}
+
+function hasWeekToggle(): boolean {
+  return days().some((day) => day.id === "legs-b");
+}
 
 function draftKey(exerciseId: string, setIndex: number): string {
   return `${exerciseId}:${setIndex}`;
 }
 
 function dayById(id: string): Day | undefined {
-  return days.find((day) => day.id === id);
+  return days().find((day) => day.id === id);
+}
+
+function exerciseById(id: string): Exercise | undefined {
+  return days()
+    .flatMap((day) => day.exercises)
+    .find((exercise) => exercise.id === id);
 }
 
 function visible(): Day[] {
-  return visibleDays(days, settings.weekMode);
+  return visibleDays(days(), settings.weekMode);
 }
 
 function sessionElapsed(): number {
@@ -98,10 +129,8 @@ function updateClocks(): void {
 
 async function refresh(): Promise<void> {
   profileId = resolveProfileId();
-  profile = profileById(profileId);
   settings = await getSettings(profileId);
   workouts = await listWorkouts(profileId);
-  milestones = mergeMilestones(catalog, await getMilestoneState(profileId));
   if (settings.activeWorkoutId) {
     activeWorkout = (await getWorkout(profileId, settings.activeWorkoutId)) ?? null;
     if (!activeWorkout) {
@@ -264,6 +293,26 @@ function lastFinishedDayId(): string | null {
   return finished?.dayId ?? null;
 }
 
+function setLines(workout: Workout): string {
+  return workout.sets
+    .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId) || a.setIndex - b.setIndex)
+    .map((set) => {
+      const exercise = exerciseById(set.exerciseId);
+      const restLabel = set.restSeconds != null ? ` · rest ${formatClock(set.restSeconds)}` : "";
+      return `<div class="muted">${exercise?.name ?? set.exerciseId}: ${set.weight} × ${set.reps}${restLabel}</div>`;
+    })
+    .join("");
+}
+
+function openCalendarDate(dateKey: string): void {
+  selectedCalendarDate = dateKey;
+  const parsed = parseDateKey(dateKey);
+  calendarYear = parsed.getFullYear();
+  calendarMonth = parsed.getMonth();
+  view = "calendar";
+  render();
+}
+
 function renderTimer(): string {
   if (!rest) return "";
   const left = remainingSeconds(rest);
@@ -283,28 +332,49 @@ function renderTimer(): string {
 }
 
 function renderToday(): string {
-  const suggested = suggestedDayId(days, lastFinishedDayId(), settings.weekMode);
+  const suggested = suggestedDayId(days(), lastFinishedDayId(), settings.weekMode);
   const activeDay = activeWorkout ? dayById(activeWorkout.dayId) : null;
-  const weekHits = new Set(
-    workouts
-      .filter((workout) => workout.finishedAt && Date.now() - Date.parse(workout.startedAt) < 8 * 86400000)
-      .map((workout) => workout.dayId),
-  );
+  const week = weekDates();
+  const weekStart = formatDateKey(week[0]);
+  const weekEnd = formatDateKey(week[6]);
+  const trained = uniqueFinishedDates(workouts, weekStart, weekEnd);
+  const trainedSet = new Set(trained);
+  const today = todayDate();
+  const dayWord = trained.length === 1 ? "day" : "days";
   return `
     <section class="card">
-      <div class="row">
+      <div class="week-head">
         <div>
           <div class="muted">This week</div>
-          <h2>${settings.weekMode === "5day" ? "5-day PPL" : "6-day PPL"}</h2>
+          <h2>${formatWeekRange(week)}</h2>
+          <div class="muted">${trained.length} ${dayWord} trained</div>
         </div>
-        <div class="toggle">
-          <button data-week="6day" class="${settings.weekMode === "6day" ? "active" : ""}">6 day</button>
-          <button data-week="5day" class="${settings.weekMode === "5day" ? "active" : ""}">5 day</button>
-        </div>
+        ${
+          hasWeekToggle()
+            ? `<div class="toggle">
+                <button data-week="6day" class="${settings.weekMode === "6day" ? "active" : ""}">6 day</button>
+                <button data-week="5day" class="${settings.weekMode === "5day" ? "active" : ""}">5 day</button>
+              </div>`
+            : ""
+        }
       </div>
-      <div class="week-dots">
-        ${visible()
-          .map((day) => `<span class="dot ${weekHits.has(day.id) ? "hit" : ""}">${day.name}</span>`)
+      <div class="week-strip">
+        ${week
+          .map((date, index) => {
+            const key = formatDateKey(date);
+            const classes = [
+              "week-day",
+              key === today ? "today" : "",
+              trainedSet.has(key) ? "hit" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return `
+              <button class="${classes}" data-cal-date="${key}">
+                <span class="week-dow">${WEEKDAY_LETTERS[index]}</span>
+                <span class="week-num">${date.getDate()}</span>
+              </button>`;
+          })
           .join("")}
       </div>
     </section>
@@ -342,20 +412,28 @@ function renderSetRow(exercise: Exercise, setIndex: number): string {
   );
   return `
     <div class="set-row" data-exercise="${exercise.id}" data-set="${setIndex}">
-      <div class="muted">${setIndex + 1}</div>
-      <div class="stepper">
-        <button data-step="weight" data-delta="${-exercise.incrementLb || -2.5}">-</button>
-        <input inputmode="decimal" data-field="weight" value="${draft.weight}" />
-        <button data-step="weight" data-delta="${exercise.incrementLb || 2.5}">+</button>
+      <div class="set-row-head">
+        <div class="set-label">Set ${setIndex + 1}</div>
+        <button class="done ${logged ? "complete" : ""}" data-complete="${exercise.id}" data-set="${setIndex}">
+          ${logged ? "Logged" : "Done"}
+        </button>
       </div>
-      <div class="stepper">
-        <button data-step="reps" data-delta="-1">-</button>
-        <input inputmode="numeric" data-field="reps" value="${draft.reps}" />
-        <button data-step="reps" data-delta="1">+</button>
+      <div class="stepper-field">
+        <span class="muted">Weight</span>
+        <div class="stepper">
+          <button data-step="weight" data-delta="${-exercise.incrementLb || -2.5}">-</button>
+          <input inputmode="decimal" data-field="weight" value="${draft.weight}" />
+          <button data-step="weight" data-delta="${exercise.incrementLb || 2.5}">+</button>
+        </div>
       </div>
-      <button class="done ${logged ? "complete" : ""}" data-complete="${exercise.id}" data-set="${setIndex}">
-        ${logged ? "Logged" : "Done"}
-      </button>
+      <div class="stepper-field">
+        <span class="muted">Reps</span>
+        <div class="stepper">
+          <button data-step="reps" data-delta="-1">-</button>
+          <input inputmode="numeric" data-field="reps" value="${draft.reps}" />
+          <button data-step="reps" data-delta="1">+</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -383,15 +461,17 @@ function renderWorkout(): string {
           <button data-action="finish">Finish</button>
         </div>
       </div>
+      ${day.notes ? `<p class="muted day-notes">${day.notes}</p>` : ""}
     </section>
     ${day.exercises
       .map((exercise) => {
         const last = lastWorkingSets(workouts, exercise.id);
         const next = nextTargetWeight(exercise, workouts);
+        const side = exercise.laterality === "per_side" ? " each side" : "";
         return `
           <section class="card exercise">
             <h3>${exercise.name}</h3>
-            <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax} · rest ${formatClock(exercise.restSeconds)}</div>
+            <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax}${side} · rest ${formatClock(exercise.restSeconds)}</div>
             <div class="muted">Last: ${formatLastSession(last)}</div>
             <div>Next: ${next == null ? "choose a starting weight" : `${next} lb`}</div>
             ${exercise.notes ? `<div class="muted">${exercise.notes}</div>` : ""}
@@ -416,14 +496,7 @@ function renderHistory(): string {
   return workouts
     .map((workout) => {
       const day = dayById(workout.dayId);
-      const setLines = workout.sets
-        .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId) || a.setIndex - b.setIndex)
-        .map((set) => {
-          const exercise = days.flatMap((item) => item.exercises).find((item) => item.id === set.exerciseId);
-          const restLabel = set.restSeconds != null ? ` · rest ${formatClock(set.restSeconds)}` : "";
-          return `<div class="muted">${exercise?.name ?? set.exerciseId}: ${set.weight} × ${set.reps}${restLabel}</div>`;
-        })
-        .join("");
+      const lines = setLines(workout);
       return `
         <section class="card">
           <div class="row">
@@ -433,31 +506,75 @@ function renderHistory(): string {
             </div>
             <button class="danger" data-delete-workout="${workout.id}">Delete</button>
           </div>
-          ${setLines || `<div class="muted">No sets logged.</div>`}
+          ${lines || `<div class="muted">No sets logged.</div>`}
         </section>
       `;
     })
     .join("");
 }
 
-function renderGoals(): string {
+function renderCalendar(): string {
+  const today = todayDate();
+  const week = weekDates();
+  const weekCount = uniqueFinishedDates(workouts, formatDateKey(week[0]), formatDateKey(week[6])).length;
+  const monthStart = formatDateKey(new Date(calendarYear, calendarMonth, 1));
+  const monthEnd = formatDateKey(new Date(calendarYear, calendarMonth + 1, 0));
+  const monthCount = uniqueFinishedDates(workouts, monthStart, monthEnd).length;
+  const byDate = finishedWorkoutsByDate(workouts);
+  const selected = byDate.get(selectedCalendarDate) ?? [];
+  const weekWord = weekCount === 1 ? "day" : "days";
+  const monthWord = monthCount === 1 ? "day" : "days";
   return `
     <section class="card">
-      <h2>Should be able to</h2>
-      <p class="muted">Check these off when you hit them in a working set, not a gym-max.</p>
+      <div class="month-nav">
+        <button data-cal-shift="-1" aria-label="Previous month">‹</button>
+        <h2>${formatMonthTitle(calendarYear, calendarMonth)}</h2>
+        <button data-cal-shift="1" aria-label="Next month">›</button>
+      </div>
+      <div class="muted cal-stats">${weekCount} ${weekWord} this week · ${monthCount} ${monthWord} this month</div>
+      <div class="month-grid">
+        ${WEEKDAY_LETTERS.map((letter) => `<div class="month-dow">${letter}</div>`).join("")}
+        ${monthCells(calendarYear, calendarMonth)
+          .map((date) => {
+            if (!date) return `<div class="month-cell empty"></div>`;
+            const key = formatDateKey(date);
+            const hit = byDate.has(key);
+            const classes = [
+              "month-cell",
+              hit ? "hit" : "",
+              key === selectedCalendarDate ? "selected" : "",
+              key === today ? "today" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return `
+              <button class="${classes}" data-month-date="${key}">
+                <span>${date.getDate()}</span>
+                ${hit ? `<span class="month-dot"></span>` : `<span class="month-dot spacer"></span>`}
+              </button>`;
+          })
+          .join("")}
+      </div>
     </section>
-    ${milestones
-      .map(
-        (item) => `
-      <button class="card goal" data-goal="${item.id}">
-        <input type="checkbox" ${item.done ? "checked" : ""} />
-        <div>
-          <strong>${item.lift}</strong>
-          <div class="muted">${item.target}</div>
-        </div>
-      </button>`,
-      )
-      .join("")}
+    <section class="card">
+      ${
+        selected.length
+          ? selected
+              .map((workout) => {
+                const day = dayById(workout.dayId);
+                const lines = setLines(workout);
+                return `
+                  <div class="cal-detail">
+                    <div class="muted">${historyMeta(workout)}</div>
+                    <h3>${day?.name ?? workout.dayId}</h3>
+                    ${day?.focus ? `<div class="muted">${day.focus}</div>` : ""}
+                    ${lines || `<div class="muted">No sets logged.</div>`}
+                  </div>`;
+              })
+              .join("")
+          : `<div class="muted">${selectedCalendarDate} · no finished workout</div>`
+      }
+    </section>
   `;
 }
 
@@ -478,19 +595,29 @@ function render(): void {
     today: "Today",
     workout: "Workout",
     history: "History",
-    goals: "Goals",
+    calendar: "Calendar",
     backup: "Backup",
   };
   root.innerHTML = `
     <header class="topbar">
-      <div class="brand">Workout <span>Tracker</span></div>
-      <div class="muted">${profile.name} · ${titles[view]}</div>
+      <div class="topbar-row">
+        <div>
+          <div class="brand">Workout <span>Tracker</span></div>
+          <div class="muted">${titles[view]}</div>
+        </div>
+        <button data-view="backup" class="${view === "backup" ? "active-ghost" : ""}">Backup</button>
+      </div>
+      <div class="toggle profile-toggle">
+        ${PROFILES.map(
+          (item) =>
+            `<button data-profile="${item.id}" class="${item.id === profileId ? "active" : ""}">${item.name}</button>`,
+        ).join("")}
+      </div>
     </header>
     <nav class="nav">
       <button data-view="today" class="${view === "today" || view === "workout" ? "active" : ""}">Train</button>
       <button data-view="history" class="${view === "history" ? "active" : ""}">History</button>
-      <button data-view="goals" class="${view === "goals" ? "active" : ""}">Goals</button>
-      <button data-view="backup" class="${view === "backup" ? "active" : ""}">Backup</button>
+      <button data-view="calendar" class="${view === "calendar" ? "active" : ""}">Calendar</button>
     </nav>
     ${
       view === "today"
@@ -499,8 +626,8 @@ function render(): void {
           ? renderWorkout()
           : view === "history"
             ? renderHistory()
-            : view === "goals"
-              ? renderGoals()
+            : view === "calendar"
+              ? renderCalendar()
               : renderBackup()
     }
   `;
@@ -509,8 +636,14 @@ function render(): void {
 
 function bind(): void {
   root.addEventListener("click", async (event) => {
-    const target = (event.target as HTMLElement).closest("button, [data-goal]");
+    const target = (event.target as HTMLElement).closest("button");
     if (!(target instanceof HTMLElement)) return;
+
+    if (target.dataset.profile) {
+      if (target.dataset.profile === profileId) return;
+      location.hash = target.dataset.profile;
+      return;
+    }
 
     const nextView = target.dataset.view as View | undefined;
     if (nextView) {
@@ -522,6 +655,25 @@ function bind(): void {
     if (target.dataset.week) {
       settings.weekMode = target.dataset.week === "5day" ? "5day" : "6day";
       await saveSettings(profileId, settings);
+      render();
+      return;
+    }
+
+    if (target.dataset.calDate) {
+      openCalendarDate(target.dataset.calDate);
+      return;
+    }
+
+    if (target.dataset.calShift) {
+      const next = shiftMonth(calendarYear, calendarMonth, Number(target.dataset.calShift));
+      calendarYear = next.year;
+      calendarMonth = next.month;
+      render();
+      return;
+    }
+
+    if (target.dataset.monthDate) {
+      selectedCalendarDate = target.dataset.monthDate;
       render();
       return;
     }
@@ -593,15 +745,6 @@ function bind(): void {
       return;
     }
 
-    if (target.dataset.goal) {
-      const state = Object.fromEntries(milestones.map((item) => [item.id, item.done]));
-      state[target.dataset.goal] = !state[target.dataset.goal];
-      await saveMilestoneState(profileId, state);
-      milestones = mergeMilestones(catalog, state);
-      render();
-      return;
-    }
-
     if (target.dataset.action === "export") {
       const payload = await exportBackup(profileId);
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -644,11 +787,26 @@ function bind(): void {
   });
 }
 
+async function onHashChange(): Promise<void> {
+  const next = resolveProfileId();
+  if (next === profileId) return;
+  view = "today";
+  drafts = {};
+  rest = null;
+  lastTimerZero = false;
+  await refresh();
+  if (settings.activeWorkoutId) view = "workout";
+  render();
+}
+
 export async function startApp(): Promise<void> {
   await refresh();
   if (settings.activeWorkoutId) view = "workout";
   bind();
   render();
+  window.addEventListener("hashchange", () => {
+    void onHashChange();
+  });
   window.clearInterval(timerHandle);
   timerHandle = window.setInterval(() => {
     if (view === "workout") updateClocks();

@@ -17,6 +17,7 @@ export interface Day {
   id: string;
   name: string;
   focus: string;
+  notes?: string;
   exercises: Exercise[];
 }
 
@@ -60,4 +61,4 @@ export interface Settings {
   restPrescribed: number | null;
 }
 
-export type View = "today" | "workout" | "history" | "goals" | "backup";
+export type View = "today" | "workout" | "history" | "calendar" | "backup";

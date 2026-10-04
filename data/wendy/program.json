@@ -1,0 +1,277 @@
+{
+  "name": "Glute-focused 4-day",
+  "unit": "lb",
+  "days": [
+    {
+      "id": "glutes-hams",
+      "name": "Day 1",
+      "focus": "Glutes + hamstrings",
+      "notes": "Warm-up: 5–10 min incline walk. Optional finish: 10–15 min incline walk.",
+      "exercises": [
+        {
+          "id": "hip-thrust",
+          "name": "Hip thrust",
+          "sets": 4,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 150,
+          "incrementLb": 10
+        },
+        {
+          "id": "rdl",
+          "name": "Romanian deadlift",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 150,
+          "incrementLb": 10
+        },
+        {
+          "id": "bulgarian-split-squat",
+          "name": "Bulgarian split squat",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 120,
+          "incrementLb": 5,
+          "laterality": "per_side"
+        },
+        {
+          "id": "hamstring-curl",
+          "name": "Seated or lying hamstring curl",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 75,
+          "incrementLb": 5
+        },
+        {
+          "id": "cable-kickback",
+          "name": "Cable kickback",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5,
+          "laterality": "per_side"
+        },
+        {
+          "id": "hip-abduction",
+          "name": "Hip abduction machine",
+          "sets": 3,
+          "repMin": 15,
+          "repMax": 20,
+          "restSeconds": 60,
+          "incrementLb": 5
+        }
+      ]
+    },
+    {
+      "id": "upper",
+      "name": "Day 2",
+      "focus": "Back + shoulders + arms",
+      "notes": "Optional finish: 15–20 min StairMaster.",
+      "exercises": [
+        {
+          "id": "lat-pulldown",
+          "name": "Lat pulldown",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "cable-row",
+          "name": "Seated cable row",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "db-shoulder-press",
+          "name": "Dumbbell shoulder press",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 120,
+          "incrementLb": 5
+        },
+        {
+          "id": "lateral-raise",
+          "name": "Lateral raise",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "face-pull",
+          "name": "Face pull",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "tricep-rope",
+          "name": "Tricep rope pushdown",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "db-curl",
+          "name": "Dumbbell bicep curl",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 75,
+          "incrementLb": 2.5
+        }
+      ]
+    },
+    {
+      "id": "quads-glutes",
+      "name": "Day 3",
+      "focus": "Quads + glutes",
+      "notes": "Optional finish: 10–15 min incline walk.",
+      "exercises": [
+        {
+          "id": "squat-or-hack",
+          "name": "Squat or hack squat",
+          "sets": 4,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 180,
+          "incrementLb": 10
+        },
+        {
+          "id": "leg-press",
+          "name": "Leg press",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 10
+        },
+        {
+          "id": "walking-lunge",
+          "name": "Walking lunge",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 10,
+          "restSeconds": 120,
+          "incrementLb": 5,
+          "laterality": "per_side"
+        },
+        {
+          "id": "step-up",
+          "name": "Step-up",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 10,
+          "restSeconds": 90,
+          "incrementLb": 5,
+          "laterality": "per_side"
+        },
+        {
+          "id": "leg-extension",
+          "name": "Leg extension",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 75,
+          "incrementLb": 5
+        },
+        {
+          "id": "hip-abduction",
+          "name": "Hip abduction",
+          "sets": 3,
+          "repMin": 15,
+          "repMax": 20,
+          "restSeconds": 60,
+          "incrementLb": 5
+        }
+      ]
+    },
+    {
+      "id": "full-body",
+      "name": "Day 4",
+      "focus": "Full body + conditioning",
+      "notes": "Lighter session. Finish with 20–30 min incline treadmill or StairMaster.",
+      "exercises": [
+        {
+          "id": "goblet-squat",
+          "name": "Goblet squat",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5
+        },
+        {
+          "id": "hip-thrust",
+          "name": "Hip thrust",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 120,
+          "incrementLb": 10
+        },
+        {
+          "id": "lat-pulldown",
+          "name": "Lat pulldown",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5
+        },
+        {
+          "id": "chest-press",
+          "name": "Chest press",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5
+        },
+        {
+          "id": "cable-row",
+          "name": "Cable row",
+          "sets": 3,
+          "repMin": 10,
+          "repMax": 12,
+          "restSeconds": 90,
+          "incrementLb": 5
+        },
+        {
+          "id": "lateral-raise",
+          "name": "Lateral raise",
+          "sets": 3,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 60,
+          "incrementLb": 2.5
+        },
+        {
+          "id": "cable-crunch-or-plank",
+          "name": "Cable crunch or plank",
+          "sets": 3,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 45,
+          "incrementLb": 0,
+          "notes": "For planks, log seconds in the reps field."
+        }
+      ]
+    }
+  ]
+}

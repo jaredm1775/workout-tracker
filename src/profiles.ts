@@ -5,7 +5,10 @@ export interface Profile {
   name: string;
 }
 
-export const PROFILES: Profile[] = [{ id: "jared", name: "Jared" }];
+export const PROFILES: Profile[] = [
+  { id: "jared", name: "Jared" },
+  { id: "wendy", name: "Wendy" },
+];
 
 export function isKnownProfileId(id: string | undefined | null): id is string {
   return Boolean(id && PROFILES.some((profile) => profile.id === id));
