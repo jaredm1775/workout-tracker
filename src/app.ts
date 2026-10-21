@@ -31,11 +31,14 @@ import { profileById, PROFILES, resolveProfileId } from "./profiles";
 import { milestoneCatalog, programFor } from "./programs";
 import {
   formatLastSession,
+  isLateFinish,
+  lastSetAt,
   lastWeight,
   lastWorkingSets,
   newId,
   nextTargetWeight,
   suggestedDayId,
+  suggestedFinishAt,
   todayDate,
   visibleDays,
 } from "./progression";
@@ -279,7 +282,16 @@ async function completeSet(exercise: Exercise, setIndex: number): Promise<void> 
 
 async function finishWorkout(): Promise<void> {
   if (!activeWorkout) return;
-  activeWorkout.finishedAt = new Date().toISOString();
+  const now = new Date().toISOString();
+  const suggested = suggestedFinishAt(activeWorkout);
+  let finishedAt = now;
+  if (suggested && isLateFinish(activeWorkout, now)) {
+    const useSuggested = confirm(
+      `Your last set was at ${timeLabel(lastSetAt(activeWorkout) ?? suggested)}. Finish the workout at ${timeLabel(suggested)} instead of now?\n\nOK uses ${timeLabel(suggested)}. Cancel uses the current time.`,
+    );
+    if (useSuggested) finishedAt = suggested;
+  }
+  activeWorkout.finishedAt = finishedAt;
   await saveWorkout(activeWorkout);
   scheduleSync(0);
   settings.activeWorkoutId = null;
@@ -320,6 +332,24 @@ async function removeHistoryWorkout(id: string): Promise<void> {
   } else {
     workouts = await listWorkouts(profileId);
   }
+  render();
+}
+
+function timeLabel(value: string | number): string {
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+async function fixFinishTime(id: string): Promise<void> {
+  const workout = workouts.find((item) => item.id === id);
+  const suggested = workout ? suggestedFinishAt(workout) : null;
+  if (!workout?.finishedAt || !suggested) return;
+  const ok = confirm(
+    `Change the end time from ${timeLabel(workout.finishedAt)} to ${timeLabel(suggested)}, two minutes after the last set? Sets are not changed.`,
+  );
+  if (!ok) return;
+  workout.finishedAt = suggested;
+  await saveWorkout(workout);
+  scheduleSync();
   render();
 }
 
@@ -600,6 +630,14 @@ function renderHistory(): string {
             </div>
             <button class="danger" data-delete-workout="${workout.id}">Delete</button>
           </div>
+          ${
+            isLateFinish(workout)
+              ? `<div class="late-finish">
+                  <span class="muted">Ended long after the last set.</span>
+                  <button data-fix-finish="${workout.id}">Fix end time</button>
+                </div>`
+              : ""
+          }
           ${lines || `<div class="muted">No sets logged.</div>`}
         </section>
       `;
@@ -970,6 +1008,11 @@ function bind(): void {
 
     if (target.dataset.action === "cancel") {
       await cancelWorkout();
+      return;
+    }
+
+    if (target.dataset.fixFinish) {
+      await fixFinishTime(target.dataset.fixFinish);
       return;
     }
 

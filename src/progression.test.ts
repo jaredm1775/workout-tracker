@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { estimatedOneRepMax, lastWorkingSets, nextTargetWeight, suggestedDayId } from "./progression";
+import {
+  estimatedOneRepMax,
+  isLateFinish,
+  lastWorkingSets,
+  nextTargetWeight,
+  suggestedDayId,
+  suggestedFinishAt,
+} from "./progression";
 import type { Exercise, LoggedSet, Workout } from "./types";
 
 const bench: Exercise = {
@@ -71,6 +78,33 @@ describe("estimatedOneRepMax", () => {
     expect(estimatedOneRepMax(200, 1)).toBe(200);
     expect(estimatedOneRepMax(150, 10)).toBe(200);
     expect(estimatedOneRepMax(0, 5)).toBe(0);
+  });
+});
+
+describe("finish time", () => {
+  const session: Workout = {
+    id: "late",
+    profileId: "wendy",
+    dayId: "quads-glutes",
+    date: "2026-10-20",
+    startedAt: "2026-10-20T23:01:13.391Z",
+    finishedAt: "2026-10-21T02:38:43.069Z",
+    sets: [
+      { exerciseId: "step-up", setIndex: 1, weight: 20, reps: 10, completedAt: "2026-10-20T23:47:35.008Z" },
+      { exerciseId: "step-up", setIndex: 0, weight: 20, reps: 8, completedAt: "2026-10-20T23:43:03.854Z" },
+    ],
+  };
+
+  it("suggests two minutes after the latest set", () => {
+    expect(suggestedFinishAt(session)).toBe("2026-10-20T23:49:35.008Z");
+    expect(suggestedFinishAt({ ...session, sets: [] })).toBeNull();
+  });
+
+  it("flags a finish more than 30 minutes after the last set", () => {
+    expect(isLateFinish(session)).toBe(true);
+    expect(isLateFinish(session, "2026-10-21T00:17:00.000Z")).toBe(false);
+    expect(isLateFinish({ ...session, sets: [] })).toBe(false);
+    expect(isLateFinish({ ...session, finishedAt: undefined })).toBe(false);
   });
 });
 

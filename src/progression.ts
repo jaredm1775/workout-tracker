@@ -44,6 +44,27 @@ export function estimatedOneRepMax(weight: number, reps: number): number {
   return Math.round(weight * (1 + reps / 30) * 10) / 10;
 }
 
+// A finish this long after the last logged set almost always means Finish was tapped late.
+export const LATE_FINISH_MINUTES = 30;
+const FINISH_AFTER_LAST_SET_MS = 2 * 60_000;
+
+export function lastSetAt(workout: Workout): number | null {
+  if (!workout.sets.length) return null;
+  return Math.max(...workout.sets.map((set) => Date.parse(set.completedAt)));
+}
+
+// Two minutes after the last set, or null when there is nothing to anchor to.
+export function suggestedFinishAt(workout: Workout): string | null {
+  const last = lastSetAt(workout);
+  return last == null ? null : new Date(last + FINISH_AFTER_LAST_SET_MS).toISOString();
+}
+
+export function isLateFinish(workout: Workout, finishedAt = workout.finishedAt): boolean {
+  const last = lastSetAt(workout);
+  if (last == null || !finishedAt) return false;
+  return Date.parse(finishedAt) - last > LATE_FINISH_MINUTES * 60_000;
+}
+
 export function formatLastSession(sets: LoggedSet[]): string {
   if (!sets.length) return "No history yet — set a starting weight today.";
   return sets.map((set) => `${set.weight} × ${set.reps}`).join(", ");
