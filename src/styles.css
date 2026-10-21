@@ -45,6 +45,11 @@ button {
   color: var(--text);
   min-height: 48px;
   padding: 0 16px;
+  /* No double-tap zoom on fast +/− taps, and no grey flash on iOS. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button:active {
@@ -118,10 +123,32 @@ button:active {
   color: var(--muted);
 }
 
+.label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 h1,
 h2,
 h3 {
   margin: 0 0 8px;
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.card-head .muted {
+  font-size: 0.9rem;
 }
 
 .day-grid {
@@ -132,12 +159,26 @@ h3 {
 }
 
 .chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-height: 72px;
   text-align: left;
   background: var(--bg-card);
   border: 1px solid var(--line);
   padding: 14px 16px;
   font-size: 1.05rem;
+}
+
+.pill {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #06241c;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .chip.suggested {
@@ -223,6 +264,8 @@ h3 {
   min-width: 48px;
   padding: 0;
   background: #24303a;
+  font-size: 1.4rem;
+  line-height: 1;
 }
 
 .stepper input {
@@ -234,6 +277,7 @@ h3 {
   color: var(--text);
   text-align: center;
   font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .done {
@@ -261,7 +305,8 @@ h3 {
 
 .workout-sticky {
   position: sticky;
-  top: 8px;
+  /* Clear the notch / Dynamic Island when running from the home screen. */
+  top: calc(env(safe-area-inset-top) + 8px);
   z-index: 5;
   margin-bottom: 12px;
 }
@@ -284,14 +329,24 @@ h3 {
 }
 
 .timer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   background: #10231f;
   border: 1px solid var(--accent-dim);
   border-radius: 16px;
-  padding: 14px;
+  padding: 10px 12px;
+}
+
+.timer-readout .muted {
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .timer-clock {
-  font-size: 2.2rem;
+  font-size: 1.9rem;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
@@ -301,10 +356,15 @@ h3 {
 }
 
 .timer-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.timer-actions button {
+  min-height: 44px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .toggle {
@@ -333,6 +393,54 @@ h3 {
 .danger {
   background: #3a1d22;
   color: #ffd6d8;
+}
+
+.danger.small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.set-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.set-group-name {
+  font-size: 0.95rem;
+}
+
+.set-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.exercise .set-chips {
+  justify-content: flex-start;
+  margin: 8px 0 0;
+}
+
+.set-chip {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.set-chip .times {
+  margin: 0 2px;
+  color: var(--muted);
 }
 
 .hidden {
@@ -640,9 +748,14 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
-.streak > span:last-child {
+.streak-text {
   display: flex;
   flex-direction: column;
+  line-height: 1.35;
+}
+
+.streak-text strong {
+  font-size: 1.05rem;
 }
 
 .streak small {
@@ -685,14 +798,26 @@ h3 {
   padding: 14px 16px;
 }
 
-.stat-tile .muted {
+.stat-tile .label {
   font-size: 0.85rem;
+}
+
+.stat-tile small {
+  display: block;
+  font-size: 0.82rem;
 }
 
 .stat-value {
   font-size: 1.8rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.stat-unit {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .select {

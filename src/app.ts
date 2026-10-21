@@ -28,7 +28,7 @@ import {
   type RestoreResult,
 } from "./db";
 import { profileById, PROFILES, resolveProfileId } from "./profiles";
-import { columnChart, compact, lineChart } from "./charts";
+import { columnChart, lineChart } from "./charts";
 import { milestoneCatalog, programFor } from "./programs";
 import {
   dayStreak,
@@ -75,7 +75,7 @@ import {
   syncState,
   type SyncState,
 } from "./sync";
-import type { Day, Exercise, Milestone, Program, Settings, SyncConfig, View, Workout } from "./types";
+import type { Day, Exercise, LoggedSet, Milestone, Program, Settings, SyncConfig, View, Workout } from "./types";
 import "./styles.css";
 
 const rootEl = document.querySelector<HTMLDivElement>("#app");
@@ -372,14 +372,29 @@ function lastFinishedDayId(): string | null {
   return finished?.dayId ?? null;
 }
 
+function setChips(sets: LoggedSet[]): string {
+  return [...sets]
+    .sort((a, b) => a.setIndex - b.setIndex)
+    .map((set) => `<span class="set-chip">${set.weight}<span class="times">×</span>${set.reps}</span>`)
+    .join("");
+}
+
+// One row per exercise, in program order, with its sets as chips that wrap whole.
 function setLines(workout: Workout): string {
-  return [...workout.sets]
-    .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId) || a.setIndex - b.setIndex)
-    .map((set) => {
-      const exercise = exerciseById(set.exerciseId);
-      const restLabel = set.restSeconds != null ? ` · rest ${formatClock(set.restSeconds)}` : "";
-      return `<div class="muted">${exercise?.name ?? set.exerciseId}: ${set.weight} × ${set.reps}${restLabel}</div>`;
-    })
+  const order = new Map(days().flatMap((day) => day.exercises).map((exercise, index) => [exercise.id, index]));
+  const groups = new Map<string, LoggedSet[]>();
+  for (const set of workout.sets) {
+    groups.set(set.exerciseId, [...(groups.get(set.exerciseId) ?? []), set]);
+  }
+  return [...groups]
+    .sort(([a], [b]) => (order.get(a) ?? 999) - (order.get(b) ?? 999))
+    .map(
+      ([exerciseId, sets]) => `
+      <div class="set-group">
+        <div class="set-group-name">${exerciseById(exerciseId)?.name ?? exerciseId}</div>
+        <div class="set-chips">${setChips(sets)}</div>
+      </div>`,
+    )
     .join("");
 }
 
@@ -398,12 +413,13 @@ function renderTimer(): string {
   const clockClass = left < 0 ? "over" : "";
   return `
     <section class="timer-bar">
-      <div class="muted">Rest</div>
-      <div class="timer-clock ${clockClass}" data-rest-clock>${formatClock(left)}</div>
-      <div class="muted">Target ${formatClock(rest.prescribed)}</div>
+      <div class="timer-readout">
+        <div class="muted">Rest · Target ${formatClock(rest.prescribed)}</div>
+        <div class="timer-clock ${clockClass}" data-rest-clock>${formatClock(left)}</div>
+      </div>
       <div class="timer-actions">
-        <button data-action="rest-minus">-15s</button>
-        <button data-action="rest-plus">+15s</button>
+        <button data-action="rest-minus" aria-label="Subtract 15 seconds">−15s</button>
+        <button data-action="rest-plus" aria-label="Add 15 seconds">+15s</button>
         <button data-action="rest-skip">Skip</button>
       </div>
     </section>
@@ -419,20 +435,20 @@ function renderToday(): string {
   const trained = uniqueFinishedDates(workouts, weekStart, weekEnd);
   const trainedSet = new Set(trained);
   const today = todayDate();
-  const dayWord = trained.length === 1 ? "day" : "days";
+  const dayWord = trained.length === 1 ? "Day" : "Days";
   return `
     <section class="card">
       <div class="week-head">
         <div>
-          <div class="muted">This week</div>
+          <div class="label">This Week</div>
           <h2>${formatWeekRange(week)}</h2>
-          <div class="muted">${trained.length} ${dayWord} trained</div>
+          <div class="muted">${trained.length} ${dayWord} Trained</div>
         </div>
         ${
           hasWeekToggle()
             ? `<div class="toggle">
-                <button data-week="6day" class="${settings.weekMode === "6day" ? "active" : ""}">6 day</button>
-                <button data-week="5day" class="${settings.weekMode === "5day" ? "active" : ""}">5 day</button>
+                <button data-week="6day" class="${settings.weekMode === "6day" ? "active" : ""}">6-Day</button>
+                <button data-week="5day" class="${settings.weekMode === "5day" ? "active" : ""}">5-Day</button>
               </div>`
             : ""
         }
@@ -461,21 +477,24 @@ function renderToday(): string {
     ${
       activeDay
         ? `<section class="card">
-            <div class="muted">In progress</div>
+            <div class="label">In Progress</div>
             <h2>${activeDay.name}</h2>
-            <button class="primary" data-action="resume">Resume workout</button>
+            <button class="primary" data-action="resume">Resume Workout</button>
           </section>`
         : ""
     }
     <section class="card">
-      <div class="muted">Start a day</div>
+      <div class="label">Start a Day</div>
       <div class="day-grid">
         ${visible()
           .map(
             (day) => `
           <button class="chip ${day.id === suggested ? "suggested" : ""}" data-start="${day.id}">
-            ${day.name}
-            <small>${day.focus}${day.id === suggested ? " · next" : ""}</small>
+            <span class="chip-text">
+              ${day.name}
+              <small>${day.focus}</small>
+            </span>
+            ${day.id === suggested ? `<span class="pill">Next</span>` : ""}
           </button>`,
           )
           .join("")}
@@ -490,27 +509,36 @@ function currentStreak(): Streak {
 }
 
 function weekdayLabel(dateKey: string): string {
-  if (dateKey === todayDate()) return "today";
-  return parseDateKey(dateKey).toLocaleDateString([], { weekday: "short" });
+  return parseDateKey(dateKey).toLocaleDateString([], { weekday: "long" });
+}
+
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
 function renderStreak(): string {
   const streak = currentStreak();
   if (!streak.days) {
-    const best = streak.best ? ` · best ${streak.best} days` : "";
-    return `<div class="streak off"><span class="streak-count">0</span><span><strong>No streak yet</strong><small class="muted">Train today to start one${best}</small></span></div>`;
+    return `
+      <div class="streak off">
+        <span class="streak-count">0</span>
+        <span class="streak-text">
+          <strong>No Streak Yet</strong>
+          <small class="muted">Train today to start one${streak.best ? ` · Best: ${plural(streak.best, "day")}` : ""}</small>
+        </span>
+      </div>`;
   }
-  const rest = `${streak.restDays} rest ${streak.restDays === 1 ? "day" : "days"}`;
   const keep =
     streak.trainBy === todayDate()
-      ? "train today to keep it"
-      : `train by ${weekdayLabel(streak.trainBy ?? todayDate())} to keep it`;
+      ? "Train today to keep it going"
+      : `Train by ${weekdayLabel(streak.trainBy ?? todayDate())} to keep it going`;
   return `
     <div class="streak">
       <span class="streak-count">${streak.days}</span>
-      <span>
-        <strong>day streak</strong>
-        <small class="muted">${streak.workouts} workouts, ${rest} · ${keep}</small>
+      <span class="streak-text">
+        <strong>Day Streak</strong>
+        <small class="muted">${plural(streak.workouts, "workout")} · ${plural(streak.restDays, "rest day")}</small>
+        <small class="muted">${keep}</small>
       </span>
     </div>`;
 }
@@ -520,7 +548,10 @@ function renderMilestones(): string {
   const done = milestones.filter((item) => item.done).length;
   return `
     <section class="card">
-      <div class="muted">Goals · ${done} of ${milestones.length} hit</div>
+      <div class="card-head">
+        <div class="label">Goals</div>
+        <div class="muted">${done} of ${milestones.length} Hit</div>
+      </div>
       <div class="milestones">
         ${milestones
           .map(
@@ -572,17 +603,17 @@ function renderSetRow(exercise: Exercise, setIndex: number): string {
       <div class="stepper-field">
         <span class="muted">Weight</span>
         <div class="stepper">
-          <button data-step="weight" data-delta="${-exercise.incrementLb || -2.5}">-</button>
-          <input inputmode="decimal" data-field="weight" value="${draft.weight}" />
-          <button data-step="weight" data-delta="${exercise.incrementLb || 2.5}">+</button>
+          <button data-step="weight" data-delta="${-exercise.incrementLb || -2.5}" aria-label="Less weight">−</button>
+          <input inputmode="decimal" data-field="weight" value="${draft.weight}" aria-label="Weight in pounds" />
+          <button data-step="weight" data-delta="${exercise.incrementLb || 2.5}" aria-label="More weight">+</button>
         </div>
       </div>
       <div class="stepper-field">
         <span class="muted">Reps</span>
         <div class="stepper">
-          <button data-step="reps" data-delta="-1">-</button>
-          <input inputmode="numeric" data-field="reps" value="${draft.reps}" />
-          <button data-step="reps" data-delta="1">+</button>
+          <button data-step="reps" data-delta="-1" aria-label="Fewer reps">−</button>
+          <input inputmode="numeric" data-field="reps" value="${draft.reps}" aria-label="Reps" />
+          <button data-step="reps" data-delta="1" aria-label="More reps">+</button>
         </div>
       </div>
     </div>
@@ -629,19 +660,19 @@ function renderWorkout(): string {
             <button class="exercise-head" data-toggle-exercise="${exercise.id}" aria-expanded="${!collapsed}">
               <span class="exercise-title">
                 <h3>${exercise.name}</h3>
-                <span class="muted">${count}/${exercise.sets} sets logged</span>
+                <span class="muted">${count} of ${exercise.sets} sets logged</span>
               </span>
               <span class="chevron" aria-hidden="true">›</span>
             </button>
             ${
               collapsed
                 ? today?.length
-                  ? `<div class="muted">Today: ${formatLastSession(today)}</div>`
+                  ? `<div class="set-chips">${setChips(today)}</div>`
                   : ""
                 : `
-            <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax}${side} · rest ${formatClock(exercise.restSeconds)}</div>
+            <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax}${side} · Rest ${formatClock(exercise.restSeconds)}</div>
             <div class="muted">Last: ${formatLastSession(last)}</div>
-            <div>Next: ${next == null ? "choose a starting weight" : `${next} lb`}</div>
+            <div>Next: ${next == null ? "Choose a starting weight" : `${next} lb`}</div>
             ${exercise.notes ? `<div class="muted">${exercise.notes}</div>` : ""}
             ${Array.from({ length: exercise.sets }, (_, i) => renderSetRow(exercise, i)).join("")}`
             }
@@ -652,10 +683,20 @@ function renderWorkout(): string {
   `;
 }
 
+function dayDate(dateKey: string): string {
+  return parseDateKey(dateKey).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
 function historyMeta(workout: Workout): string {
-  if (!workout.finishedAt) return `${workout.date} · in progress`;
-  const duration = formatClock(elapsedSeconds(Date.parse(workout.startedAt), Date.parse(workout.finishedAt)));
-  return `${workout.date} · ${duration}`;
+  if (!workout.finishedAt) return `${dayDate(workout.date)} · In Progress`;
+  const duration = formatDuration(elapsedSeconds(Date.parse(workout.startedAt), Date.parse(workout.finishedAt)));
+  return `${dayDate(workout.date)} · ${duration}`;
 }
 
 function renderHistory(): string {
@@ -673,13 +714,13 @@ function renderHistory(): string {
               <div class="muted">${historyMeta(workout)}</div>
               <h3>${day?.name ?? workout.dayId}</h3>
             </div>
-            <button class="danger" data-delete-workout="${workout.id}">Delete</button>
+            <button class="danger small" data-delete-workout="${workout.id}">Delete</button>
           </div>
           ${
             isLateFinish(workout)
               ? `<div class="late-finish">
                   <span class="muted">Ended long after the last set.</span>
-                  <button data-fix-finish="${workout.id}">Fix end time</button>
+                  <button data-fix-finish="${workout.id}">Fix End Time</button>
                 </div>`
               : ""
           }
@@ -699,8 +740,8 @@ function renderCalendar(): string {
   const monthCount = uniqueFinishedDates(workouts, monthStart, monthEnd).length;
   const byDate = finishedWorkoutsByDate(workouts);
   const selected = byDate.get(selectedCalendarDate) ?? [];
-  const weekWord = weekCount === 1 ? "day" : "days";
-  const monthWord = monthCount === 1 ? "day" : "days";
+  const weekWord = weekCount === 1 ? "Day" : "Days";
+  const monthWord = monthCount === 1 ? "Day" : "Days";
   return `
     <section class="card">
       <div class="month-nav">
@@ -708,7 +749,7 @@ function renderCalendar(): string {
         <h2>${formatMonthTitle(calendarYear, calendarMonth)}</h2>
         <button data-cal-shift="1" aria-label="Next month">›</button>
       </div>
-      <div class="muted cal-stats">${weekCount} ${weekWord} this week · ${monthCount} ${monthWord} this month</div>
+      <div class="muted cal-stats">${weekCount} ${weekWord} This Week · ${monthCount} ${monthWord} This Month</div>
       <div class="month-grid">
         ${WEEKDAY_LETTERS.map((letter) => `<div class="month-dow">${letter}</div>`).join("")}
         ${monthCells(calendarYear, calendarMonth)
@@ -749,16 +790,16 @@ function renderCalendar(): string {
                   </div>`;
               })
               .join("")
-          : `<div class="muted">${selectedCalendarDate} · no finished workout</div>`
+          : `<div class="muted">${dayDate(selectedCalendarDate)} · No workout logged</div>`
       }
     </section>
   `;
 }
 
 const PROGRESS_RANGES: Array<{ weeks: number; label: string }> = [
-  { weeks: 12, label: "3 mo" },
-  { weeks: 26, label: "6 mo" },
-  { weeks: 0, label: "All" },
+  { weeks: 12, label: "3 Months" },
+  { weeks: 26, label: "6 Months" },
+  { weeks: 0, label: "All Time" },
 ];
 
 function shortDate(dateKey: string): string {
@@ -773,8 +814,13 @@ function rangeWeeks(today: string): number {
   return Math.min(104, Math.max(4, span + 1));
 }
 
-function statTile(label: string, value: string, note = ""): string {
-  return `<div class="stat-tile"><div class="muted">${label}</div><div class="stat-value">${value}</div>${note ? `<small class="muted">${note}</small>` : ""}</div>`;
+function statTile(label: string, value: string, unit = "", note = ""): string {
+  return `
+    <div class="stat-tile">
+      <div class="label">${label}</div>
+      <div class="stat-value">${value}${unit ? `<span class="stat-unit">${unit}</span>` : ""}</div>
+      ${note ? `<small class="muted">${note}</small>` : ""}
+    </div>`;
 }
 
 function renderProgress(): string {
@@ -800,7 +846,7 @@ function renderProgress(): string {
   const change = series.length > 1 ? metricValue(series[series.length - 1]) - metricValue(series[0]) : 0;
   const changeLabel =
     series.length > 1
-      ? `${change >= 0 ? "+" : "−"}${compact(Math.abs(change))} lb since ${shortDate(series[0].date)}`
+      ? `${change >= 0 ? "+" : "−"}${Math.round(Math.abs(change))} lb since ${shortDate(series[0].date)}`
       : series.length === 1
         ? "One session so far. The line starts with your next one."
         : "No sessions in this range.";
@@ -809,7 +855,7 @@ function renderProgress(): string {
     buckets.map((bucket) => ({
       label: shortDate(bucket.start),
       value: bucket.days,
-      tip: `${bucket.days} of ${planned} days · week of ${shortDate(bucket.start)}`,
+      tip: `${bucket.days} of ${planned} days · Week of ${shortDate(bucket.start)}`,
     })),
     "Days trained per week",
     planned,
@@ -818,18 +864,18 @@ function renderProgress(): string {
     buckets.map((bucket) => ({
       label: shortDate(bucket.start),
       value: bucket.volume,
-      tip: `${bucket.volume.toLocaleString()} lb · week of ${shortDate(bucket.start)}`,
+      tip: `${bucket.volume.toLocaleString()} lb · Week of ${shortDate(bucket.start)}`,
     })),
     "Weekly volume in pounds",
   );
   const lift = lineChart(
     series.map((point) => ({
       x: parseDateKey(point.date).getTime(),
-      y: metricValue(point),
+      y: Math.round(metricValue(point)),
       tip:
         progressMetric === "e1rm"
-          ? `${point.e1rm} lb est. 1RM · ${point.e1rmSet} · ${shortDate(point.date)}`
-          : `${point.topSet} lb top set · ${shortDate(point.date)}`,
+          ? `${Math.round(point.e1rm)} lb Est. 1RM · ${point.e1rmSet} · ${shortDate(point.date)}`
+          : `${point.topSet} lb Top Set · ${shortDate(point.date)}`,
     })),
     `${progressExercise ? nameOf(progressExercise) : "Lift"} trend`,
     (x) => new Date(x).toLocaleDateString([], { month: "short", day: "numeric" }),
@@ -843,13 +889,13 @@ function renderProgress(): string {
       ).join("")}
     </div>
     <div class="stat-grid">
-      ${statTile("Current streak", `${streak.days}`, streak.days ? `days · ${streak.restDays} rest` : "days")}
-      ${statTile("Best streak", `${streak.best}`, "days")}
-      ${statTile("Workouts", `${inRange}`, `since ${shortDate(since)}`)}
-      ${statTile("Per week", perWeek.toFixed(1), `plan is ${planned}`)}
+      ${statTile("Current Streak", `${streak.days}`, streak.days === 1 ? "day" : "days", streak.days ? `Includes ${plural(streak.restDays, "rest day")}` : "Train to start one")}
+      ${statTile("Best Streak", `${streak.best}`, streak.best === 1 ? "day" : "days", "Longest run")}
+      ${statTile("Workouts", `${inRange}`, "", `Since ${shortDate(since)}`)}
+      ${statTile("Per Week", perWeek.toFixed(1), "", `Plan: ${planned} days`)}
     </div>
     <section class="card">
-      <h3>Lift progress</h3>
+      <h3>Lift Progress</h3>
       ${
         summaries.length
           ? `<select id="progress-exercise" class="select" aria-label="Exercise">
@@ -862,7 +908,7 @@ function renderProgress(): string {
             </select>
             <div class="toggle metric-toggle">
               <button data-metric="e1rm" class="${progressMetric === "e1rm" ? "active" : ""}">Est. 1RM</button>
-              <button data-metric="top" class="${progressMetric === "top" ? "active" : ""}">Top weight</button>
+              <button data-metric="top" class="${progressMetric === "top" ? "active" : ""}">Top Weight</button>
             </div>
             <div class="chart-caption">${changeLabel}</div>
             ${lift}`
@@ -870,21 +916,21 @@ function renderProgress(): string {
       }
     </section>
     <section class="card">
-      <h3>Days trained per week</h3>
+      <h3>Days Trained per Week</h3>
       <div class="muted chart-caption"><span class="key-line"></span>Line marks your plan of ${planned} days</div>
       ${frequency}
     </section>
     <section class="card">
-      <h3>Weekly volume</h3>
-      <div class="muted chart-caption">Weight × reps, all exercises</div>
+      <h3>Weekly Volume</h3>
+      <div class="muted chart-caption">Weight × reps across all exercises, in lb</div>
       ${volume}
     </section>
     <section class="card">
-      <h3>Personal records</h3>
+      <h3>Personal Records</h3>
       ${
         summaries.length
           ? `<table class="pr-table">
-              <thead><tr><th>Exercise</th><th>Est. 1RM</th><th>Best set</th></tr></thead>
+              <thead><tr><th>Exercise</th><th>Est. 1RM</th><th>Best Set</th></tr></thead>
               <tbody>
                 ${[...summaries]
                   .sort((a, b) => b.best.e1rm - a.best.e1rm)
@@ -892,7 +938,7 @@ function renderProgress(): string {
                     (item) => `
                   <tr>
                     <td>${nameOf(item.exerciseId)}<small class="muted">${shortDate(item.best.date)}</small></td>
-                    <td class="num">${compact(item.best.e1rm)}</td>
+                    <td class="num">${Math.round(item.best.e1rm)} lb</td>
                     <td class="num">${item.best.e1rmSet}</td>
                   </tr>`,
                   )
@@ -951,14 +997,14 @@ function renderSync(): string {
   if (!syncConfig) {
     return `
       <section class="card">
-        <h2>Live sync to Google Sheets</h2>
+        <h3>Live Sync to Google Sheets</h3>
         <p class="muted">Every set you log is sent to your Google Sheet within seconds. Without signal, sets wait on the phone and go up when you are back online. Setup steps are at the top of <code>apps-script/Code.gs</code>.</p>
         <label class="field">
-          <span class="muted">Web app URL</span>
+          <span class="muted">Web App URL</span>
           <input id="sync-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
         </label>
         <label class="field">
-          <span class="muted">Sync password</span>
+          <span class="muted">Sync Password</span>
           <input id="sync-token" type="password" autocomplete="off" />
         </label>
         <button class="primary" data-action="sync-connect">Connect</button>
@@ -968,14 +1014,14 @@ function renderSync(): string {
   }
   return `
     <section class="card">
-      <h2>Live sync to Google Sheets</h2>
+      <h3>Live Sync to Google Sheets</h3>
       <div class="sync-status-row">${renderSyncBadge()}</div>
       <p class="muted" data-sync-detail>Last sync: ${last}${state.lastError ? ` · ${state.lastError}` : ""}</p>
-      <button class="primary" data-action="sync-now">Sync now</button>
+      <button class="primary" data-action="sync-now">Sync Now</button>
       <button data-action="sync-restore">Restore from Sheet</button>
-      <button data-action="sync-link">Copy setup link for another phone</button>
-      <button data-action="sync-resend">Resend all history</button>
-      <button class="danger" data-action="sync-disconnect">Disconnect this phone</button>
+      <button data-action="sync-link">Copy Setup Link for Another Phone</button>
+      <button data-action="sync-resend">Resend All History</button>
+      <button class="danger" data-action="sync-disconnect">Disconnect This Phone</button>
       ${syncMessage ? `<p class="sync-message">${syncMessage}</p>` : ""}
     </section>
   `;
@@ -985,7 +1031,7 @@ function renderBackup(): string {
   return `
     ${renderSync()}
     <section class="card">
-      <h2>Backup file</h2>
+      <h3>Backup File</h3>
       <p class="muted">Saves a JSON file of ${profileById(profileId).name}'s history to this phone, or loads one back. This is separate from the Sheet and does not upload anything. Do not commit that file to the public GitHub repo unless you want the numbers public.</p>
       <button class="primary" data-action="export">Export JSON</button>
       <button data-action="import">Import JSON</button>
@@ -1065,14 +1111,15 @@ function updateSyncIndicators(state: SyncState): void {
 
 function render(): void {
   const titles: Record<View, string> = {
-    today: "Today",
+    today: "Train",
     workout: "Workout",
     history: "History",
     calendar: "Calendar",
     progress: "Progress",
-    backup: "Sync & backup",
+    backup: "Sync & Backup",
   };
   hideChartTip();
+  rememberView();
   root.innerHTML = `
     <header class="topbar">
       <div class="topbar-row">
@@ -1336,6 +1383,11 @@ function bind(): void {
   root.addEventListener("focusin", (event) => {
     const hit = tipTarget(event);
     if (hit) showChartTip(hit);
+    // Select the whole number so typing replaces it instead of appending on the iPhone keypad.
+    const field = event.target;
+    if (field instanceof HTMLInputElement && field.dataset.field) {
+      requestAnimationFrame(() => field.select());
+    }
   });
   root.addEventListener("focusout", () => hideChartTip());
 
@@ -1397,9 +1449,31 @@ async function onHashChange(): Promise<void> {
   render();
 }
 
+const VIEW_KEY = "workout-tracker:view";
+const RESTORABLE_VIEWS: View[] = ["today", "history", "calendar", "progress", "backup"];
+
+// iOS often reloads a home-screen app after it sits in the background; come back to the same tab.
+function rememberView(): void {
+  try {
+    sessionStorage.setItem(VIEW_KEY, view);
+  } catch {
+    /* private mode */
+  }
+}
+
+function restoredView(): View {
+  try {
+    const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
+    if (saved && RESTORABLE_VIEWS.includes(saved)) return saved;
+  } catch {
+    /* private mode */
+  }
+  return "today";
+}
+
 export async function startApp(): Promise<void> {
   await refresh();
-  if (settings.activeWorkoutId) view = "workout";
+  view = settings.activeWorkoutId ? "workout" : restoredView();
   bind();
   render();
   void requestPersistentStorage();
