@@ -1,7 +1,18 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
-import { ackSyncEntries, deleteWorkout, getSyncQueue, importBackup, saveWorkout } from "./db";
-import { opToWire, parseSetupHash, workoutToWire } from "./sync";
+import {
+  ackSyncEntries,
+  deleteWorkout,
+  getMilestoneState,
+  getSyncQueue,
+  getWorkout,
+  importBackup,
+  listWorkouts,
+  mergeRestored,
+  saveMilestoneState,
+  saveWorkout,
+} from "./db";
+import { opToWire, parseSetupHash, restoredToWorkouts, workoutToWire } from "./sync";
 import type { Workout } from "./types";
 
 function sample(id: string, finished = true): Workout {
@@ -82,6 +93,45 @@ describe("sync queue", () => {
     expect(queue["workout:old"].op.type).toBe("delete");
     expect(queue["workout:new"].op.type).toBe("workout");
     expect(queue["milestones:jared"].op.type).toBe("milestones");
+  });
+});
+
+describe("restore from Sheet", () => {
+  it("maps older rows by day name and drops unknown profiles", () => {
+    const rows = restoredToWorkouts([
+      { ...sample("r1"), dayId: "", dayName: "Push A", finishedAt: null },
+      { ...sample("r2"), profileId: "someone-else" },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].dayId).toBe("push-a");
+    expect("finishedAt" in rows[0]).toBe(false);
+  });
+
+  it("only adds missing workouts and keeps local edits and pending deletes", async () => {
+    const localVersion = { ...sample("m1"), sets: [] };
+    await saveWorkout(localVersion);
+    await saveWorkout(sample("m2"));
+    await deleteWorkout("m2");
+    await saveMilestoneState("jared", { "bench-185x5": false });
+
+    const result = await mergeRestored([sample("m1"), sample("m2"), sample("m3")], {
+      jared: { "bench-185x5": true, "bench-225x5": true },
+    });
+
+    expect(result).toEqual({ added: 1, skipped: 2 });
+    const ids = (await listWorkouts("jared")).map((workout) => workout.id);
+    expect(ids).toContain("m3");
+    expect(ids).not.toContain("m2");
+    expect((await getWorkout("jared", "m1"))?.sets).toEqual([]);
+    expect(await getMilestoneState("jared")).toEqual({ "bench-185x5": false, "bench-225x5": true });
+    // Restored rows already live in the Sheet, so they are not queued for upload.
+    expect((await getSyncQueue())["workout:m3"]).toBeUndefined();
+    // The goals upload still waiting carries the merged list, not the stale one.
+    expect((await getSyncQueue())["milestones:jared"].op).toEqual({
+      type: "milestones",
+      profileId: "jared",
+      state: { "bench-185x5": false, "bench-225x5": true },
+    });
   });
 });
 

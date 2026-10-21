@@ -26,6 +26,12 @@ The Sheet holds:
 
 The phone stays the source of truth. Editing rows in the Sheet does not change the app, and the next sync of that workout overwrites its rows.
 
+### Restoring a phone
+
+Connecting a phone (by form or setup link) pulls back any workouts in the Sheet that the phone is missing. **Data → Restore from Sheet** does the same at any time. Restore only adds: it never changes or removes what is already on the phone, and it skips workouts you deleted on the phone that have not synced yet.
+
+The **Export JSON** button is separate. It saves a file to the phone and does not upload anything; the Sheet is updated automatically as you log.
+
 ## Connect GitHub and publish
 
 1. Install [GitHub CLI](https://cli.github.com/) if `gh` is not already on your PATH.

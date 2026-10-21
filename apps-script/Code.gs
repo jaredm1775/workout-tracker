@@ -15,7 +15,7 @@
 
 var SHEETS = {
   Workouts: ["workoutId", "profile", "date", "day", "focus", "startedAt", "finishedAt",
-             "durationMin", "sets", "volumeLb", "updatedAt"],
+             "durationMin", "sets", "volumeLb", "updatedAt", "dayId"],
   Sets: ["workoutId", "profile", "date", "day", "exercise", "exerciseId", "set",
          "weight", "reps", "e1rm", "restSec", "completedAt"],
   Milestones: ["profile", "milestoneId", "lift", "target", "done", "updatedAt"],
@@ -51,6 +51,9 @@ function doPost(e) {
   var token = PropertiesService.getScriptProperties().getProperty("SYNC_TOKEN");
   if (!token || body.token !== token) {
     return json_({ ok: false, error: "Wrong sync password" });
+  }
+  if (body.action === "restore") {
+    return json_(restore_());
   }
   var ops = Array.isArray(body.ops) ? body.ops : [];
   if (!ops.length) return json_({ ok: true, applied: 0 });
@@ -99,15 +102,61 @@ function apply_(ops) {
   }, milestoneRows, null);
 }
 
+// Rebuilds the app's workout records from the Sheet, for a new or wiped phone.
+function restore_() {
+  var ss = SpreadsheetApp.getActive();
+  var workouts = {};
+  readRows_(sheetFor_(ss, "Workouts"), "Workouts").forEach(function (row) {
+    if (!row.workoutId) return;
+    workouts[row.workoutId] = {
+      id: String(row.workoutId),
+      profileId: String(row.profile),
+      dayId: String(row.dayId || ""),
+      dayName: String(row.day || ""),
+      date: String(row.date),
+      startedAt: String(row.startedAt),
+      finishedAt: row.finishedAt ? String(row.finishedAt) : undefined,
+      sets: [],
+    };
+  });
+  readRows_(sheetFor_(ss, "Sets"), "Sets").forEach(function (row) {
+    var workout = workouts[row.workoutId];
+    if (!workout) return;
+    var set = {
+      exerciseId: String(row.exerciseId),
+      setIndex: Number(row.set) - 1,
+      weight: Number(row.weight) || 0,
+      reps: Number(row.reps) || 0,
+      completedAt: String(row.completedAt),
+    };
+    if (row.restSec !== "" && row.restSec !== null) set.restSeconds = Number(row.restSec);
+    workout.sets.push(set);
+  });
+  var milestones = {};
+  readRows_(sheetFor_(ss, "Milestones"), "Milestones").forEach(function (row) {
+    if (!row.profile || !row.milestoneId) return;
+    milestones[row.profile] = milestones[row.profile] || {};
+    milestones[row.profile][row.milestoneId] = row.done === true || String(row.done).toUpperCase() === "TRUE";
+  });
+  return {
+    ok: true,
+    workouts: Object.keys(workouts).map(function (id) { return workouts[id]; }),
+    milestones: milestones,
+  };
+}
+
+function readRows_(sheet, name) {
+  var headers = SHEETS[name];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
+    .map(function (values) { return toObject_(headers, values); });
+}
+
 function replaceRows_(sheet, name, isReplaced, incoming, sortKey) {
   var headers = SHEETS[name];
   var lastRow = sheet.getLastRow();
-  var existing = lastRow > 1
-    ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
-    : [];
-  var kept = existing
-    .map(function (values) { return toObject_(headers, values); })
-    .filter(function (row) { return !isReplaced(row); });
+  var kept = readRows_(sheet, name).filter(function (row) { return !isReplaced(row); });
   var rows = kept.concat(incoming);
   if (sortKey) {
     rows.sort(function (a, b) {

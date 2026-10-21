@@ -1,6 +1,14 @@
-import { ackSyncEntries, enqueueEverything, getSyncConfig, getSyncQueue, saveSyncConfig } from "./db";
-import { PROFILES } from "./profiles";
-import { findDay, findExercise, milestoneCatalog } from "./programs";
+import {
+  ackSyncEntries,
+  enqueueEverything,
+  getSyncConfig,
+  getSyncQueue,
+  mergeRestored,
+  saveSyncConfig,
+  type RestoreResult,
+} from "./db";
+import { isKnownProfileId, PROFILES } from "./profiles";
+import { findDay, findExercise, milestoneCatalog, programFor } from "./programs";
 import { estimatedOneRepMax } from "./progression";
 import type { SyncConfig, SyncOp, Workout } from "./types";
 
@@ -115,6 +123,7 @@ export function workoutToWire(workout: Workout, updatedAt = new Date().toISOStri
       sets: sets.length,
       volumeLb: round1(volume),
       updatedAt,
+      dayId: workout.dayId,
     },
     sets: sets.map((set) => ({
       workoutId: workout.id,
@@ -150,21 +159,73 @@ export function opToWire(op: SyncOp, updatedAt = new Date().toISOString()): Wire
   };
 }
 
-async function post(config: SyncConfig, ops: WireOp[]): Promise<void> {
+interface SheetReply {
+  ok?: boolean;
+  error?: string;
+  workouts?: RestoredWorkout[];
+  milestones?: Record<string, Record<string, boolean>>;
+}
+
+export interface RestoredWorkout extends Omit<Workout, "finishedAt"> {
+  finishedAt?: string | null;
+  dayName?: string;
+}
+
+async function call(config: SyncConfig, payload: Record<string, unknown>): Promise<SheetReply> {
   // text/plain keeps this a "simple" CORS request; Apps Script cannot answer preflights.
   const response = await fetch(config.url, {
     method: "POST",
-    body: JSON.stringify({ token: config.token, ops }),
+    body: JSON.stringify({ token: config.token, ...payload }),
     redirect: "follow",
   });
   if (!response.ok) throw new Error(`Sheet returned HTTP ${response.status}`);
-  let body: { ok?: boolean; error?: string };
+  let body: SheetReply;
   try {
     body = await response.json();
   } catch {
     throw new Error("Sheet did not answer with JSON. Check the web app URL and that access is set to Anyone.");
   }
-  if (!body.ok) throw new Error(body.error ?? "Sheet rejected the upload");
+  if (!body.ok) throw new Error(body.error ?? "Sheet rejected the request");
+  return body;
+}
+
+async function post(config: SyncConfig, ops: WireOp[]): Promise<void> {
+  await call(config, { ops });
+}
+
+// Rows written before the Sheet had a dayId column only carry the day's name.
+function resolveDayId(workout: RestoredWorkout): string {
+  if (workout.dayId) return workout.dayId;
+  const day = programFor(workout.profileId).days.find((item) => item.name === workout.dayName);
+  return day?.id ?? workout.dayName ?? "";
+}
+
+export function restoredToWorkouts(rows: RestoredWorkout[]): Workout[] {
+  return rows
+    .filter((row) => row.id && isKnownProfileId(row.profileId))
+    .map((row) => ({
+      id: row.id,
+      profileId: row.profileId,
+      dayId: resolveDayId(row),
+      date: row.date,
+      startedAt: row.startedAt,
+      ...(row.finishedAt ? { finishedAt: row.finishedAt } : {}),
+      sets: row.sets ?? [],
+    }));
+}
+
+// Pulls history back from the Sheet. Only adds what this phone is missing, so
+// it is safe to run any time and never discards a change still waiting to upload.
+export async function restoreFromSheet(config?: SyncConfig): Promise<RestoreResult> {
+  const active = config ?? (await getSyncConfig());
+  if (!active) throw new Error("Connect a Sheet first.");
+  const reply = await call(active, { action: "restore" });
+  if (!Array.isArray(reply.workouts)) {
+    throw new Error(
+      "The Sheet script is out of date. Paste the latest apps-script/Code.gs, then Deploy → Manage deployments → Edit → New version.",
+    );
+  }
+  return mergeRestored(restoredToWorkouts(reply.workouts), reply.milestones ?? {});
 }
 
 async function refreshPending(): Promise<number> {
@@ -241,7 +302,7 @@ export async function testConnection(config: SyncConfig): Promise<void> {
   await post(config, []);
 }
 
-export async function connectSheet(config: SyncConfig): Promise<void> {
+export async function connectSheet(config: SyncConfig): Promise<RestoreResult | null> {
   const clean = { url: config.url.trim(), token: config.token.trim() };
   if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(clean.url)) {
     throw new Error("That does not look like an Apps Script web app URL (https://script.google.com/...).");
@@ -249,9 +310,18 @@ export async function connectSheet(config: SyncConfig): Promise<void> {
   if (!clean.token) throw new Error("Enter the sync password from the script.");
   await testConnection(clean);
   await saveSyncConfig(clean);
+  // Queue this phone's own history before pulling, so restored rows are not
+  // re-uploaded and cannot overwrite newer edits made on another phone.
   await enqueueEverything(PROFILES.map((profile) => profile.id));
+  let restored: RestoreResult | null = null;
+  try {
+    restored = await restoreFromSheet(clean);
+  } catch {
+    // An older script without restore still syncs; the Restore button reports the reason.
+  }
   failures = 0;
   await flushNow();
+  return restored;
 }
 
 export async function disconnectSheet(): Promise<void> {

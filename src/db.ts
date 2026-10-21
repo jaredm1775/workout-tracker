@@ -308,6 +308,48 @@ export async function enqueueEverything(profileIds: string[]): Promise<void> {
   db.close();
 }
 
+export interface RestoreResult {
+  added: number;
+  skipped: number;
+}
+
+// Adds workouts from the Sheet that this phone does not have. Never overwrites
+// or deletes local data, skips workouts deleted here but not yet synced, and
+// does not queue anything, since the Sheet already holds these rows.
+export async function mergeRestored(
+  incoming: Workout[],
+  milestones: Record<string, Record<string, boolean>>,
+): Promise<RestoreResult> {
+  const local = new Set((await allWorkouts()).map((workout) => workout.id));
+  const queue = await getSyncQueue();
+  const fresh = incoming.filter(
+    (workout) => !local.has(workout.id) && queue[workoutQueueKey(workout.id)]?.op.type !== "delete",
+  );
+  const localMilestones: Record<string, Record<string, boolean>> = {};
+  for (const profileId of Object.keys(milestones)) {
+    if (isKnownProfileId(profileId)) localMilestones[profileId] = await getMilestoneState(profileId);
+  }
+
+  const db = await openDb();
+  const tx = db.transaction(["workouts", "kv"], "readwrite");
+  for (const workout of fresh) {
+    tx.objectStore("workouts").put(workout);
+  }
+  const pendingMilestones: Array<[string, SyncOp]> = [];
+  for (const [profileId, state] of Object.entries(localMilestones)) {
+    const merged = { ...milestones[profileId], ...state };
+    tx.objectStore("kv").put(merged, milestonesKey(profileId));
+    // A queued upload of the pre-restore list would untick goals the Sheet has marked done.
+    if (queue[milestonesKey(profileId)]) {
+      pendingMilestones.push([milestonesKey(profileId), { type: "milestones", profileId, state: merged }]);
+    }
+  }
+  enqueueInTx(tx, pendingMilestones);
+  await waitTx(tx);
+  db.close();
+  return { added: fresh.length, skipped: incoming.length - fresh.length };
+}
+
 export interface BackupPayload {
   exportedAt: string;
   profileId: string;

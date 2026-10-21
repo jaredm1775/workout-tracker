@@ -25,6 +25,7 @@ import {
   saveSettings,
   saveWorkout,
   validateBackup,
+  type RestoreResult,
 } from "./db";
 import { profileById, PROFILES, resolveProfileId } from "./profiles";
 import { milestoneCatalog, programFor } from "./programs";
@@ -53,6 +54,7 @@ import {
   onSyncChange,
   parseSetupHash,
   resendEverything,
+  restoreFromSheet,
   scheduleSync,
   setupLink,
   startSyncLoop,
@@ -710,6 +712,7 @@ function renderSync(): string {
       <div class="sync-status-row">${renderSyncBadge()}</div>
       <p class="muted" data-sync-detail>Last sync: ${last}${state.lastError ? ` · ${state.lastError}` : ""}</p>
       <button class="primary" data-action="sync-now">Sync now</button>
+      <button data-action="sync-restore">Restore from Sheet</button>
       <button data-action="sync-link">Copy setup link for another phone</button>
       <button data-action="sync-resend">Resend all history</button>
       <button class="danger" data-action="sync-disconnect">Disconnect this phone</button>
@@ -723,7 +726,7 @@ function renderBackup(): string {
     ${renderSync()}
     <section class="card">
       <h2>Backup file</h2>
-      <p class="muted">Export a JSON copy of ${profileById(profileId).name}'s history, or restore one. Do not commit that file to the public GitHub repo unless you want the numbers public.</p>
+      <p class="muted">Saves a JSON file of ${profileById(profileId).name}'s history to this phone, or loads one back. This is separate from the Sheet and does not upload anything. Do not commit that file to the public GitHub repo unless you want the numbers public.</p>
       <button class="primary" data-action="export">Export JSON</button>
       <button data-action="import">Import JSON</button>
       <input class="hidden" id="import-file" type="file" accept="application/json" />
@@ -737,11 +740,38 @@ async function connectFromForm(): Promise<void> {
   syncMessage = "Connecting…";
   render();
   try {
-    await connectSheet({ url, token });
-    syncConfig = await getSyncConfig();
-    syncMessage = "Connected. Your history is being sent to the Sheet.";
+    await afterConnect(await connectSheet({ url, token }), "Connected.");
   } catch (error) {
     syncMessage = error instanceof Error ? error.message : "Could not connect.";
+  }
+  render();
+}
+
+function restoredLabel(result: RestoreResult): string {
+  if (!result.added) return "Nothing to restore; this phone already has everything in the Sheet.";
+  return `Restored ${result.added} workout${result.added === 1 ? "" : "s"} from the Sheet.`;
+}
+
+async function afterConnect(result: RestoreResult | null, lead: string): Promise<void> {
+  syncConfig = await getSyncConfig();
+  await refresh();
+  syncMessage = result?.added
+    ? `${lead} ${restoredLabel(result)} Your history on this phone is being sent to the Sheet.`
+    : `${lead} Your history on this phone is being sent to the Sheet.`;
+}
+
+async function restoreNow(): Promise<void> {
+  if (!confirm("Add any workouts from the Sheet that are missing on this phone? Nothing on this phone is changed or removed.")) {
+    return;
+  }
+  syncMessage = "Restoring…";
+  render();
+  try {
+    const result = await restoreFromSheet();
+    await refresh();
+    syncMessage = restoredLabel(result);
+  } catch (error) {
+    syncMessage = error instanceof Error ? error.message : "Could not restore.";
   }
   render();
 }
@@ -753,9 +783,7 @@ async function connectFromSetupHash(): Promise<void> {
   if (syncConfig?.url === config.url && syncConfig.token === config.token) return;
   if (!confirm("Connect this phone to the workout Google Sheet?")) return;
   try {
-    await connectSheet(config);
-    syncConfig = await getSyncConfig();
-    syncMessage = "Connected from setup link.";
+    await afterConnect(await connectSheet(config), "Connected from setup link.");
   } catch (error) {
     syncMessage = error instanceof Error ? error.message : "Could not connect.";
   }
@@ -891,6 +919,11 @@ function bind(): void {
       syncMessage = "";
       await flushNow();
       render();
+      return;
+    }
+
+    if (target.dataset.action === "sync-restore") {
+      await restoreNow();
       return;
     }
 
