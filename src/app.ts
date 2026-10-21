@@ -28,7 +28,18 @@ import {
   type RestoreResult,
 } from "./db";
 import { profileById, PROFILES, resolveProfileId } from "./profiles";
+import { columnChart, compact, lineChart } from "./charts";
 import { milestoneCatalog, programFor } from "./programs";
+import {
+  dayStreak,
+  exerciseSummaries,
+  liftSeries,
+  weeklyBuckets,
+  weekStartKey,
+  workoutsSince,
+  type LiftPoint,
+  type Streak,
+} from "./stats";
 import {
   formatLastSession,
   isLateFinish,
@@ -97,6 +108,9 @@ let milestones: Milestone[] = [];
 let collapsedOverride: Record<string, boolean> = {};
 let syncConfig: SyncConfig | null = null;
 let syncMessage = "";
+let progressRange = 12;
+let progressExercise: string | null = null;
+let progressMetric: "e1rm" | "top" = "e1rm";
 
 function currentProgram(): Program {
   return programFor(profileId);
@@ -442,6 +456,7 @@ function renderToday(): string {
           })
           .join("")}
       </div>
+      ${renderStreak()}
     </section>
     ${
       activeDay
@@ -468,6 +483,36 @@ function renderToday(): string {
     </section>
     ${renderMilestones()}
   `;
+}
+
+function currentStreak(): Streak {
+  return dayStreak(workouts, visible().length, todayDate());
+}
+
+function weekdayLabel(dateKey: string): string {
+  if (dateKey === todayDate()) return "today";
+  return parseDateKey(dateKey).toLocaleDateString([], { weekday: "short" });
+}
+
+function renderStreak(): string {
+  const streak = currentStreak();
+  if (!streak.days) {
+    const best = streak.best ? ` · best ${streak.best} days` : "";
+    return `<div class="streak off"><span class="streak-count">0</span><span><strong>No streak yet</strong><small class="muted">Train today to start one${best}</small></span></div>`;
+  }
+  const rest = `${streak.restDays} rest ${streak.restDays === 1 ? "day" : "days"}`;
+  const keep =
+    streak.trainBy === todayDate()
+      ? "train today to keep it"
+      : `train by ${weekdayLabel(streak.trainBy ?? todayDate())} to keep it`;
+  return `
+    <div class="streak">
+      <span class="streak-count">${streak.days}</span>
+      <span>
+        <strong>day streak</strong>
+        <small class="muted">${streak.workouts} workouts, ${rest} · ${keep}</small>
+      </span>
+    </div>`;
 }
 
 function renderMilestones(): string {
@@ -710,6 +755,183 @@ function renderCalendar(): string {
   `;
 }
 
+const PROGRESS_RANGES: Array<{ weeks: number; label: string }> = [
+  { weeks: 12, label: "3 mo" },
+  { weeks: 26, label: "6 mo" },
+  { weeks: 0, label: "All" },
+];
+
+function shortDate(dateKey: string): string {
+  return parseDateKey(dateKey).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function rangeWeeks(today: string): number {
+  if (progressRange) return progressRange;
+  const first = workouts.filter((workout) => workout.finishedAt).map((workout) => workout.date).sort()[0];
+  if (!first) return 12;
+  const span = Math.round((parseDateKey(weekStartKey(today)).getTime() - parseDateKey(weekStartKey(first)).getTime()) / (7 * 86_400_000));
+  return Math.min(104, Math.max(4, span + 1));
+}
+
+function statTile(label: string, value: string, note = ""): string {
+  return `<div class="stat-tile"><div class="muted">${label}</div><div class="stat-value">${value}</div>${note ? `<small class="muted">${note}</small>` : ""}</div>`;
+}
+
+function renderProgress(): string {
+  if (!workouts.some((workout) => workout.finishedAt)) {
+    return `<section class="card">Finish a workout and your trends will show up here.</section>`;
+  }
+  const today = todayDate();
+  const weeks = rangeWeeks(today);
+  const buckets = weeklyBuckets(workouts, weeks, today);
+  const since = buckets[0].start;
+  const streak = currentStreak();
+  const planned = visible().length;
+  const inRange = workoutsSince(workouts, since);
+  const perWeek = inRange / weeks;
+
+  const summaries = exerciseSummaries(workouts);
+  if (!progressExercise || !summaries.some((item) => item.exerciseId === progressExercise)) {
+    progressExercise = summaries[0]?.exerciseId ?? null;
+  }
+  const nameOf = (id: string) => exerciseById(id)?.name ?? id;
+  const series = progressExercise ? liftSeries(workouts, progressExercise).filter((point) => point.date >= since) : [];
+  const metricValue = (point: LiftPoint) => (progressMetric === "e1rm" ? point.e1rm : point.topWeight);
+  const change = series.length > 1 ? metricValue(series[series.length - 1]) - metricValue(series[0]) : 0;
+  const changeLabel =
+    series.length > 1
+      ? `${change >= 0 ? "+" : "−"}${compact(Math.abs(change))} lb since ${shortDate(series[0].date)}`
+      : series.length === 1
+        ? "One session so far. The line starts with your next one."
+        : "No sessions in this range.";
+
+  const frequency = columnChart(
+    buckets.map((bucket) => ({
+      label: shortDate(bucket.start),
+      value: bucket.days,
+      tip: `${bucket.days} of ${planned} days · week of ${shortDate(bucket.start)}`,
+    })),
+    "Days trained per week",
+    planned,
+  );
+  const volume = columnChart(
+    buckets.map((bucket) => ({
+      label: shortDate(bucket.start),
+      value: bucket.volume,
+      tip: `${bucket.volume.toLocaleString()} lb · week of ${shortDate(bucket.start)}`,
+    })),
+    "Weekly volume in pounds",
+  );
+  const lift = lineChart(
+    series.map((point) => ({
+      x: parseDateKey(point.date).getTime(),
+      y: metricValue(point),
+      tip:
+        progressMetric === "e1rm"
+          ? `${point.e1rm} lb est. 1RM · ${point.e1rmSet} · ${shortDate(point.date)}`
+          : `${point.topSet} lb top set · ${shortDate(point.date)}`,
+    })),
+    `${progressExercise ? nameOf(progressExercise) : "Lift"} trend`,
+    (x) => new Date(x).toLocaleDateString([], { month: "short", day: "numeric" }),
+  );
+
+  return `
+    <div class="toggle range-toggle">
+      ${PROGRESS_RANGES.map(
+        (item) =>
+          `<button data-range="${item.weeks}" class="${item.weeks === progressRange ? "active" : ""}">${item.label}</button>`,
+      ).join("")}
+    </div>
+    <div class="stat-grid">
+      ${statTile("Current streak", `${streak.days}`, streak.days ? `days · ${streak.restDays} rest` : "days")}
+      ${statTile("Best streak", `${streak.best}`, "days")}
+      ${statTile("Workouts", `${inRange}`, `since ${shortDate(since)}`)}
+      ${statTile("Per week", perWeek.toFixed(1), `plan is ${planned}`)}
+    </div>
+    <section class="card">
+      <h3>Lift progress</h3>
+      ${
+        summaries.length
+          ? `<select id="progress-exercise" class="select" aria-label="Exercise">
+              ${summaries
+                .map(
+                  (item) =>
+                    `<option value="${item.exerciseId}" ${item.exerciseId === progressExercise ? "selected" : ""}>${nameOf(item.exerciseId)} (${item.sessions})</option>`,
+                )
+                .join("")}
+            </select>
+            <div class="toggle metric-toggle">
+              <button data-metric="e1rm" class="${progressMetric === "e1rm" ? "active" : ""}">Est. 1RM</button>
+              <button data-metric="top" class="${progressMetric === "top" ? "active" : ""}">Top weight</button>
+            </div>
+            <div class="chart-caption">${changeLabel}</div>
+            ${lift}`
+          : `<div class="muted">Log weighted sets to see lift trends.</div>`
+      }
+    </section>
+    <section class="card">
+      <h3>Days trained per week</h3>
+      <div class="muted chart-caption"><span class="key-line"></span>Line marks your plan of ${planned} days</div>
+      ${frequency}
+    </section>
+    <section class="card">
+      <h3>Weekly volume</h3>
+      <div class="muted chart-caption">Weight × reps, all exercises</div>
+      ${volume}
+    </section>
+    <section class="card">
+      <h3>Personal records</h3>
+      ${
+        summaries.length
+          ? `<table class="pr-table">
+              <thead><tr><th>Exercise</th><th>Est. 1RM</th><th>Best set</th></tr></thead>
+              <tbody>
+                ${[...summaries]
+                  .sort((a, b) => b.best.e1rm - a.best.e1rm)
+                  .map(
+                    (item) => `
+                  <tr>
+                    <td>${nameOf(item.exerciseId)}<small class="muted">${shortDate(item.best.date)}</small></td>
+                    <td class="num">${compact(item.best.e1rm)}</td>
+                    <td class="num">${item.best.e1rmSet}</td>
+                  </tr>`,
+                  )
+                  .join("")}
+              </tbody>
+            </table>`
+          : `<div class="muted">No records yet.</div>`
+      }
+    </section>
+  `;
+}
+
+function showChartTip(target: Element): void {
+  const tipText = target.getAttribute("data-tip");
+  if (!tipText) return;
+  let tip = document.querySelector<HTMLDivElement>("#chart-tip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "chart-tip";
+    tip.setAttribute("role", "status");
+    document.body.appendChild(tip);
+  }
+  root.querySelectorAll(".chart-hit.active").forEach((el) => el.classList.remove("active"));
+  target.classList.add("active");
+  tip.textContent = tipText;
+  tip.hidden = false;
+  const box = target.getBoundingClientRect();
+  const tipBox = tip.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.left + box.width / 2 - tipBox.width / 2), window.innerWidth - tipBox.width - 8);
+  tip.style.left = `${left}px`;
+  tip.style.top = `${Math.max(8, box.top + window.scrollY - tipBox.height - 8)}px`;
+}
+
+function hideChartTip(): void {
+  const tip = document.querySelector<HTMLDivElement>("#chart-tip");
+  if (tip) tip.hidden = true;
+  root.querySelectorAll(".chart-hit.active").forEach((el) => el.classList.remove("active"));
+}
+
 function syncLabel(state: SyncState): string {
   if (state.status === "off") return "Sync off";
   if (state.status === "syncing") return "Syncing…";
@@ -847,8 +1069,10 @@ function render(): void {
     workout: "Workout",
     history: "History",
     calendar: "Calendar",
+    progress: "Progress",
     backup: "Sync & backup",
   };
+  hideChartTip();
   root.innerHTML = `
     <header class="topbar">
       <div class="topbar-row">
@@ -871,6 +1095,7 @@ function render(): void {
       <button data-view="today" class="${view === "today" || view === "workout" ? "active" : ""}">Train</button>
       <button data-view="history" class="${view === "history" ? "active" : ""}">History</button>
       <button data-view="calendar" class="${view === "calendar" ? "active" : ""}">Calendar</button>
+      <button data-view="progress" class="${view === "progress" ? "active" : ""}">Progress</button>
     </nav>
     ${
       view === "today"
@@ -881,7 +1106,9 @@ function render(): void {
             ? renderHistory()
             : view === "calendar"
               ? renderCalendar()
-              : renderBackup()
+              : view === "progress"
+                ? renderProgress()
+                : renderBackup()
     }
   `;
   updateClocks();
@@ -933,6 +1160,18 @@ function bind(): void {
 
     if (target.dataset.start) {
       await startWorkout(target.dataset.start);
+      return;
+    }
+
+    if (target.dataset.range) {
+      progressRange = Number(target.dataset.range);
+      render();
+      return;
+    }
+
+    if (target.dataset.metric) {
+      progressMetric = target.dataset.metric === "top" ? "top" : "e1rm";
+      render();
       return;
     }
 
@@ -1084,8 +1323,29 @@ function bind(): void {
     }
   });
 
+  const tipTarget = (event: Event) => (event.target as Element | null)?.closest?.(".chart-hit") ?? null;
+  root.addEventListener("pointerover", (event) => {
+    const hit = tipTarget(event);
+    if (hit) showChartTip(hit);
+  });
+  root.addEventListener("pointerout", (event) => {
+    const hit = tipTarget(event);
+    const next = (event as PointerEvent).relatedTarget as Element | null;
+    if (hit && !hit.contains(next)) hideChartTip();
+  });
+  root.addEventListener("focusin", (event) => {
+    const hit = tipTarget(event);
+    if (hit) showChartTip(hit);
+  });
+  root.addEventListener("focusout", () => hideChartTip());
+
   root.addEventListener("change", async (event) => {
     const target = event.target;
+    if (target instanceof HTMLSelectElement && target.id === "progress-exercise") {
+      progressExercise = target.value;
+      render();
+      return;
+    }
     if (!(target instanceof HTMLInputElement)) return;
     if (target.id === "import-file" && target.files?.[0]) {
       try {

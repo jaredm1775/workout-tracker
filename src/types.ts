@@ -61,7 +61,7 @@ export interface Settings {
   restPrescribed: number | null;
 }
 
-export type View = "today" | "workout" | "history" | "calendar" | "backup";
+export type View = "today" | "workout" | "history" | "calendar" | "progress" | "backup";
 
 export interface SyncConfig {
   url: string;
