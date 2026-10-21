@@ -1,5 +1,3 @@
-import jaredProgram from "../data/jared/program.json";
-import wendyProgram from "../data/wendy/program.json";
 import {
   finishedWorkoutsByDate,
   formatDateKey,
@@ -15,15 +13,21 @@ import {
 import {
   deleteWorkout,
   exportBackup,
+  getMilestoneState,
   getSettings,
+  getSyncConfig,
   getWorkout,
   importBackup,
   listWorkouts,
+  mergeMilestones,
+  requestPersistentStorage,
+  saveMilestoneState,
   saveSettings,
   saveWorkout,
-  type BackupPayload,
+  validateBackup,
 } from "./db";
-import { PROFILES, resolveProfileId } from "./profiles";
+import { profileById, PROFILES, resolveProfileId } from "./profiles";
+import { milestoneCatalog, programFor } from "./programs";
 import {
   formatLastSession,
   lastWeight,
@@ -42,17 +46,25 @@ import {
   vibrateDone,
   type RestTimerState,
 } from "./timer";
-import type { Day, Exercise, Program, Settings, View, Workout } from "./types";
+import {
+  connectSheet,
+  disconnectSheet,
+  flushNow,
+  onSyncChange,
+  parseSetupHash,
+  resendEverything,
+  scheduleSync,
+  setupLink,
+  startSyncLoop,
+  syncState,
+  type SyncState,
+} from "./sync";
+import type { Day, Exercise, Milestone, Program, Settings, SyncConfig, View, Workout } from "./types";
 import "./styles.css";
 
 const rootEl = document.querySelector<HTMLDivElement>("#app");
 if (!rootEl) throw new Error("Missing #app");
 const root = rootEl;
-
-const PROGRAMS: Record<string, Program> = {
-  jared: jaredProgram as Program,
-  wendy: wendyProgram as Program,
-};
 
 interface DraftSet {
   weight: number;
@@ -65,6 +77,8 @@ let settings: Settings;
 let workouts: Workout[] = [];
 let activeWorkout: Workout | null = null;
 let drafts: Record<string, DraftSet> = {};
+// Draft keys the user edited by hand; logging a set carries its weight only into untouched later sets.
+let touchedDrafts = new Set<string>();
 let rest: RestTimerState | null = null;
 let wakeLock: WakeLockSentinel | null = null;
 let lastTimerZero = false;
@@ -73,9 +87,14 @@ const now = new Date();
 let calendarYear = now.getFullYear();
 let calendarMonth = now.getMonth();
 let selectedCalendarDate = todayDate();
+let milestones: Milestone[] = [];
+// Explicit open/closed choices per exercise; without one, a card closes once every set is logged.
+let collapsedOverride: Record<string, boolean> = {};
+let syncConfig: SyncConfig | null = null;
+let syncMessage = "";
 
 function currentProgram(): Program {
-  return PROGRAMS[profileId] ?? PROGRAMS.jared;
+  return programFor(profileId);
 }
 
 function days(): Day[] {
@@ -131,6 +150,8 @@ async function refresh(): Promise<void> {
   profileId = resolveProfileId();
   settings = await getSettings(profileId);
   workouts = await listWorkouts(profileId);
+  milestones = mergeMilestones(milestoneCatalog(profileId), await getMilestoneState(profileId));
+  syncConfig = await getSyncConfig();
   if (settings.activeWorkoutId) {
     activeWorkout = (await getWorkout(profileId, settings.activeWorkoutId)) ?? null;
     if (!activeWorkout) {
@@ -209,8 +230,11 @@ async function startWorkout(dayId: string): Promise<void> {
   };
   activeWorkout = workout;
   settings.activeWorkoutId = workout.id;
+  collapsedOverride = {};
+  touchedDrafts = new Set();
   await saveWorkout(workout);
   await saveSettings(profileId, settings);
+  scheduleSync();
   workouts = [workout, ...workouts.filter((item) => item.id !== workout.id)];
   seedDrafts();
   view = "workout";
@@ -241,7 +265,13 @@ async function completeSet(exercise: Exercise, setIndex: number): Promise<void> 
     ...activeWorkout.sets.filter((set) => !(set.exerciseId === exercise.id && set.setIndex === setIndex)),
     logged,
   ];
+  for (let i = setIndex + 1; i < exercise.sets; i += 1) {
+    const key = draftKey(exercise.id, i);
+    const alreadyLogged = activeWorkout.sets.some((set) => set.exerciseId === exercise.id && set.setIndex === i);
+    if (!alreadyLogged && !touchedDrafts.has(key) && drafts[key]) drafts[key].weight = draft.weight;
+  }
   await saveWorkout(activeWorkout);
+  scheduleSync();
   await startRest(exercise.restSeconds);
 }
 
@@ -249,6 +279,7 @@ async function finishWorkout(): Promise<void> {
   if (!activeWorkout) return;
   activeWorkout.finishedAt = new Date().toISOString();
   await saveWorkout(activeWorkout);
+  scheduleSync(0);
   settings.activeWorkoutId = null;
   await saveSettings(profileId, settings);
   await clearRest();
@@ -271,6 +302,7 @@ async function cancelWorkout(): Promise<void> {
   if (!activeWorkout) return;
   if (!confirm("Discard this workout? It will not be saved.")) return;
   await deleteWorkout(activeWorkout.id);
+  scheduleSync();
   await clearActiveSession();
   view = "today";
   render();
@@ -280,6 +312,7 @@ async function removeHistoryWorkout(id: string): Promise<void> {
   if (!confirm("Delete this workout? It will be removed from history.")) return;
   const wasActive = settings.activeWorkoutId === id || activeWorkout?.id === id;
   await deleteWorkout(id);
+  scheduleSync();
   if (wasActive) {
     await clearActiveSession();
   } else {
@@ -294,7 +327,7 @@ function lastFinishedDayId(): string | null {
 }
 
 function setLines(workout: Workout): string {
-  return workout.sets
+  return [...workout.sets]
     .sort((a, b) => a.exerciseId.localeCompare(b.exerciseId) || a.setIndex - b.setIndex)
     .map((set) => {
       const exercise = exerciseById(set.exerciseId);
@@ -401,7 +434,48 @@ function renderToday(): string {
           .join("")}
       </div>
     </section>
+    ${renderMilestones()}
   `;
+}
+
+function renderMilestones(): string {
+  if (!milestones.length) return "";
+  const done = milestones.filter((item) => item.done).length;
+  return `
+    <section class="card">
+      <div class="muted">Goals · ${done} of ${milestones.length} hit</div>
+      <div class="milestones">
+        ${milestones
+          .map(
+            (item) => `
+          <button class="milestone ${item.done ? "done-goal" : ""}" data-milestone="${item.id}" aria-pressed="${item.done}">
+            <span class="milestone-check">${item.done ? "✓" : ""}</span>
+            <span>
+              <span class="milestone-target">${item.target}</span>
+              <small class="muted">${item.lift}</small>
+            </span>
+          </button>`,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+async function toggleMilestone(id: string): Promise<void> {
+  milestones = milestones.map((item) => (item.id === id ? { ...item, done: !item.done } : item));
+  const state = Object.fromEntries(milestones.map((item) => [item.id, item.done]));
+  await saveMilestoneState(profileId, state);
+  scheduleSync();
+  render();
+}
+
+function loggedCount(exercise: Exercise): number {
+  return activeWorkout?.sets.filter((set) => set.exerciseId === exercise.id).length ?? 0;
+}
+
+function isCollapsed(exercise: Exercise): boolean {
+  return collapsedOverride[exercise.id] ?? loggedCount(exercise) >= exercise.sets;
 }
 
 function renderSetRow(exercise: Exercise, setIndex: number): string {
@@ -468,14 +542,32 @@ function renderWorkout(): string {
         const last = lastWorkingSets(workouts, exercise.id);
         const next = nextTargetWeight(exercise, workouts);
         const side = exercise.laterality === "per_side" ? " each side" : "";
+        const count = loggedCount(exercise);
+        const collapsed = isCollapsed(exercise);
+        const today = activeWorkout?.sets
+          .filter((set) => set.exerciseId === exercise.id)
+          .sort((a, b) => a.setIndex - b.setIndex);
         return `
-          <section class="card exercise">
-            <h3>${exercise.name}</h3>
+          <section class="card exercise ${collapsed ? "collapsed" : ""} ${count >= exercise.sets ? "all-logged" : ""}">
+            <button class="exercise-head" data-toggle-exercise="${exercise.id}" aria-expanded="${!collapsed}">
+              <span class="exercise-title">
+                <h3>${exercise.name}</h3>
+                <span class="muted">${count}/${exercise.sets} sets logged</span>
+              </span>
+              <span class="chevron" aria-hidden="true">›</span>
+            </button>
+            ${
+              collapsed
+                ? today?.length
+                  ? `<div class="muted">Today: ${formatLastSession(today)}</div>`
+                  : ""
+                : `
             <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax}${side} · rest ${formatClock(exercise.restSeconds)}</div>
             <div class="muted">Last: ${formatLastSession(last)}</div>
             <div>Next: ${next == null ? "choose a starting weight" : `${next} lb`}</div>
             ${exercise.notes ? `<div class="muted">${exercise.notes}</div>` : ""}
-            ${Array.from({ length: exercise.sets }, (_, i) => renderSetRow(exercise, i)).join("")}
+            ${Array.from({ length: exercise.sets }, (_, i) => renderSetRow(exercise, i)).join("")}`
+            }
           </section>
         `;
       })
@@ -578,16 +670,109 @@ function renderCalendar(): string {
   `;
 }
 
-function renderBackup(): string {
+function syncLabel(state: SyncState): string {
+  if (state.status === "off") return "Sync off";
+  if (state.status === "syncing") return "Syncing…";
+  if (state.status === "error") return `Sync error · ${state.pending} waiting`;
+  if (state.pending) return `${state.pending} waiting`;
+  return "Synced";
+}
+
+function renderSyncBadge(): string {
+  const state = syncState();
+  return `<span class="sync-badge ${state.status}" data-sync-badge>${syncLabel(state)}</span>`;
+}
+
+function renderSync(): string {
+  const state = syncState();
+  const last = state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : "never";
+  if (!syncConfig) {
+    return `
+      <section class="card">
+        <h2>Live sync to Google Sheets</h2>
+        <p class="muted">Every set you log is sent to your Google Sheet within seconds. Without signal, sets wait on the phone and go up when you are back online. Setup steps are at the top of <code>apps-script/Code.gs</code>.</p>
+        <label class="field">
+          <span class="muted">Web app URL</span>
+          <input id="sync-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span class="muted">Sync password</span>
+          <input id="sync-token" type="password" autocomplete="off" />
+        </label>
+        <button class="primary" data-action="sync-connect">Connect</button>
+        ${syncMessage ? `<p class="sync-message">${syncMessage}</p>` : ""}
+      </section>
+    `;
+  }
   return `
     <section class="card">
-      <h2>Backup</h2>
-      <p class="muted">Your lifts stay on this phone. Export a JSON file if you want a copy for Cursor or a new device. Do not commit that file to the public GitHub repo unless you want the numbers public.</p>
+      <h2>Live sync to Google Sheets</h2>
+      <div class="sync-status-row">${renderSyncBadge()}</div>
+      <p class="muted" data-sync-detail>Last sync: ${last}${state.lastError ? ` · ${state.lastError}` : ""}</p>
+      <button class="primary" data-action="sync-now">Sync now</button>
+      <button data-action="sync-link">Copy setup link for another phone</button>
+      <button data-action="sync-resend">Resend all history</button>
+      <button class="danger" data-action="sync-disconnect">Disconnect this phone</button>
+      ${syncMessage ? `<p class="sync-message">${syncMessage}</p>` : ""}
+    </section>
+  `;
+}
+
+function renderBackup(): string {
+  return `
+    ${renderSync()}
+    <section class="card">
+      <h2>Backup file</h2>
+      <p class="muted">Export a JSON copy of ${profileById(profileId).name}'s history, or restore one. Do not commit that file to the public GitHub repo unless you want the numbers public.</p>
       <button class="primary" data-action="export">Export JSON</button>
       <button data-action="import">Import JSON</button>
       <input class="hidden" id="import-file" type="file" accept="application/json" />
     </section>
   `;
+}
+
+async function connectFromForm(): Promise<void> {
+  const url = root.querySelector<HTMLInputElement>("#sync-url")?.value ?? "";
+  const token = root.querySelector<HTMLInputElement>("#sync-token")?.value ?? "";
+  syncMessage = "Connecting…";
+  render();
+  try {
+    await connectSheet({ url, token });
+    syncConfig = await getSyncConfig();
+    syncMessage = "Connected. Your history is being sent to the Sheet.";
+  } catch (error) {
+    syncMessage = error instanceof Error ? error.message : "Could not connect.";
+  }
+  render();
+}
+
+async function connectFromSetupHash(): Promise<void> {
+  const config = parseSetupHash(location.hash);
+  if (!config) return;
+  history.replaceState(null, "", `${location.pathname}${location.search}#${profileId}`);
+  if (syncConfig?.url === config.url && syncConfig.token === config.token) return;
+  if (!confirm("Connect this phone to the workout Google Sheet?")) return;
+  try {
+    await connectSheet(config);
+    syncConfig = await getSyncConfig();
+    syncMessage = "Connected from setup link.";
+  } catch (error) {
+    syncMessage = error instanceof Error ? error.message : "Could not connect.";
+  }
+  view = "backup";
+  render();
+}
+
+function updateSyncIndicators(state: SyncState): void {
+  root.querySelectorAll<HTMLElement>("[data-sync-badge]").forEach((el) => {
+    el.className = `sync-badge ${state.status}`;
+    el.textContent = syncLabel(state);
+  });
+  const detail = root.querySelector("[data-sync-detail]");
+  if (detail) {
+    const last = state.lastSyncedAt ? new Date(state.lastSyncedAt).toLocaleString() : "never";
+    detail.textContent = `Last sync: ${last}${state.lastError ? ` · ${state.lastError}` : ""}`;
+  }
 }
 
 function render(): void {
@@ -596,7 +781,7 @@ function render(): void {
     workout: "Workout",
     history: "History",
     calendar: "Calendar",
-    backup: "Backup",
+    backup: "Sync & backup",
   };
   root.innerHTML = `
     <header class="topbar">
@@ -605,7 +790,9 @@ function render(): void {
           <div class="brand">Workout <span>Tracker</span></div>
           <div class="muted">${titles[view]}</div>
         </div>
-        <button data-view="backup" class="${view === "backup" ? "active-ghost" : ""}">Backup</button>
+        <button data-view="backup" class="data-button ${view === "backup" ? "active-ghost" : ""}">
+          Data ${renderSyncBadge()}
+        </button>
       </div>
       <div class="toggle profile-toggle">
         ${PROFILES.map(
@@ -683,6 +870,61 @@ function bind(): void {
       return;
     }
 
+    if (target.dataset.milestone) {
+      await toggleMilestone(target.dataset.milestone);
+      return;
+    }
+
+    if (target.dataset.toggleExercise) {
+      const exercise = exerciseById(target.dataset.toggleExercise);
+      if (exercise) collapsedOverride[exercise.id] = !isCollapsed(exercise);
+      render();
+      return;
+    }
+
+    if (target.dataset.action === "sync-connect") {
+      await connectFromForm();
+      return;
+    }
+
+    if (target.dataset.action === "sync-now") {
+      syncMessage = "";
+      await flushNow();
+      render();
+      return;
+    }
+
+    if (target.dataset.action === "sync-resend") {
+      syncMessage = "Resending every workout on this phone…";
+      render();
+      await resendEverything();
+      syncMessage = "";
+      render();
+      return;
+    }
+
+    if (target.dataset.action === "sync-link" && syncConfig) {
+      const link = setupLink(syncConfig, profileId);
+      try {
+        await navigator.clipboard.writeText(link);
+        syncMessage = "Setup link copied. Open it on the other phone. It contains the sync password, so only send it to yourself.";
+      } catch {
+        window.prompt("Copy this setup link:", link);
+        syncMessage = "";
+      }
+      render();
+      return;
+    }
+
+    if (target.dataset.action === "sync-disconnect") {
+      if (!confirm("Stop syncing this phone? Data already in the Sheet stays there.")) return;
+      await disconnectSheet();
+      syncConfig = null;
+      syncMessage = "";
+      render();
+      return;
+    }
+
     if (target.dataset.action === "resume") {
       await resumeWorkout();
       return;
@@ -736,12 +978,16 @@ function bind(): void {
       const key = draftKey(row.dataset.exercise, Number(row.dataset.set));
       const draft = drafts[key];
       const delta = Number(target.dataset.delta);
-      if (target.dataset.step === "weight") {
+      const field = target.dataset.step === "weight" ? "weight" : "reps";
+      touchedDrafts.add(key);
+      if (field === "weight") {
         draft.weight = Math.max(0, Math.round((draft.weight + delta) * 2) / 2);
       } else {
         draft.reps = Math.max(0, draft.reps + delta);
       }
-      render();
+      // Update just this input; a full render would jump the page and drop focus.
+      const input = row.querySelector<HTMLInputElement>(`input[data-field="${field}"]`);
+      if (input) input.value = String(draft[field]);
       return;
     }
 
@@ -768,13 +1014,25 @@ function bind(): void {
     if (target.id === "import-file" && target.files?.[0]) {
       try {
         const text = await target.files[0].text();
-        const payload = JSON.parse(text) as BackupPayload;
+        let payload;
+        try {
+          payload = validateBackup(JSON.parse(text));
+        } catch {
+          window.alert("That file is not a valid Workout Tracker backup.");
+          return;
+        }
+        const name = profileById(payload.profileId).name;
+        const ok = confirm(
+          `Replace all of ${name}'s history on this phone with the ${payload.workouts.length} workouts in this file? This cannot be undone.`,
+        );
+        if (!ok) return;
         await importBackup(payload);
+        scheduleSync(0);
         await refresh();
         view = "history";
         render();
-      } catch {
-        window.alert("That file is not a valid Workout Tracker backup.");
+      } finally {
+        target.value = "";
       }
       return;
     }
@@ -782,12 +1040,16 @@ function bind(): void {
     if (!(row instanceof HTMLElement) || !row.dataset.exercise || row.dataset.set == null) return;
     const key = draftKey(row.dataset.exercise, Number(row.dataset.set));
     const value = Number(target.value);
+    touchedDrafts.add(key);
     if (target.dataset.field === "weight") drafts[key].weight = Number.isFinite(value) ? value : 0;
     if (target.dataset.field === "reps") drafts[key].reps = Number.isFinite(value) ? value : 0;
   });
 }
 
 async function onHashChange(): Promise<void> {
+  if (parseSetupHash(location.hash)) {
+    await connectFromSetupHash();
+  }
   const next = resolveProfileId();
   if (next === profileId) return;
   view = "today";
@@ -804,6 +1066,10 @@ export async function startApp(): Promise<void> {
   if (settings.activeWorkoutId) view = "workout";
   bind();
   render();
+  void requestPersistentStorage();
+  onSyncChange(updateSyncIndicators);
+  startSyncLoop();
+  await connectFromSetupHash();
   window.addEventListener("hashchange", () => {
     void onHashChange();
   });

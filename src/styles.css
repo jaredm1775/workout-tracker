@@ -455,6 +455,160 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
+.exercise-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  min-height: 44px;
+  background: transparent;
+  text-align: left;
+}
+
+.exercise-head:active {
+  transform: none;
+}
+
+.exercise-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.exercise-title h3 {
+  margin: 0;
+}
+
+.exercise-title .muted {
+  font-size: 0.9rem;
+}
+
+.chevron {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg-card);
+  font-size: 1.4rem;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.exercise.collapsed .chevron {
+  transform: rotate(0deg);
+}
+
+.exercise.collapsed {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.exercise.all-logged .exercise-title .muted {
+  color: var(--accent);
+}
+
+.card > button:not(.primary) {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.data-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sync-badge.idle {
+  color: var(--accent);
+}
+
+.sync-badge.pending,
+.sync-badge.syncing {
+  color: var(--warn);
+}
+
+.sync-badge.error {
+  color: var(--danger);
+}
+
+.sync-status-row {
+  margin-bottom: 4px;
+}
+
+.sync-message {
+  margin: 12px 0 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.field input {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0f151b;
+  color: var(--text);
+  padding: 0 12px;
+  width: 100%;
+}
+
+.milestones {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.milestone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+}
+
+.milestone small {
+  display: block;
+}
+
+.milestone-check {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: #06241c;
+  font-weight: 700;
+}
+
+.milestone.done-goal .milestone-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.milestone.done-goal .milestone-target {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 @media (min-width: 520px) {
   .day-grid {
     grid-template-columns: 1fr 1fr;

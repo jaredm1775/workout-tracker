@@ -6,8 +6,10 @@ export function workoutsForExercise(workouts: Workout[], exerciseId: string): Wo
   );
 }
 
+// Only finished sessions count, so the workout in progress never feeds its own "Last" / "Next".
 export function lastWorkingSets(workouts: Workout[], exerciseId: string): LoggedSet[] {
   for (const workout of workouts) {
+    if (!workout.finishedAt) continue;
     const sets = workout.sets
       .filter((set) => set.exerciseId === exerciseId)
       .sort((a, b) => a.setIndex - b.setIndex);
@@ -33,6 +35,13 @@ export function nextTargetWeight(exercise: Exercise, workouts: Workout[]): numbe
     return lastLoad + exercise.incrementLb;
   }
   return lastLoad;
+}
+
+// Epley estimate; a single rep is the 1RM itself.
+export function estimatedOneRepMax(weight: number, reps: number): number {
+  if (weight <= 0 || reps <= 0) return 0;
+  if (reps === 1) return weight;
+  return Math.round(weight * (1 + reps / 30) * 10) / 10;
 }
 
 export function formatLastSession(sets: LoggedSet[]): string {

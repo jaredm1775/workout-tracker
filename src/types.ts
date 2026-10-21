@@ -62,3 +62,15 @@ export interface Settings {
 }
 
 export type View = "today" | "workout" | "history" | "calendar" | "backup";
+
+export interface SyncConfig {
+  url: string;
+  token: string;
+}
+
+export type SyncOp =
+  | { type: "workout"; workout: Workout }
+  | { type: "delete"; profileId: string; workoutId: string }
+  | { type: "milestones"; profileId: string; state: Record<string, boolean> };
+
+export type SyncQueue = Record<string, { rev: string; op: SyncOp }>;

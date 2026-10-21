@@ -1,10 +1,12 @@
 import { DEFAULT_PROFILE_ID, isKnownProfileId } from "./profiles";
-import type { Milestone, Settings, WeekMode, Workout } from "./types";
+import type { Milestone, Settings, SyncConfig, SyncOp, SyncQueue, WeekMode, Workout } from "./types";
 
 const DB_NAME = "workout-tracker";
 const DB_VERSION = 1;
 const LEGACY_DB_NAME = "ppl-tracker";
 const MIGRATION_KEY = "migrated-from-ppl-tracker";
+const SYNC_QUEUE_KEY = "sync-queue";
+const SYNC_CONFIG_KEY = "sync-config";
 
 function settingsKey(profileId: string): string {
   return `settings:${profileId}`;
@@ -64,7 +66,32 @@ function waitTx(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
+}
+
+function newRev(): string {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function workoutQueueKey(workoutId: string): string {
+  return `workout:${workoutId}`;
+}
+
+// Adds ops to the sync queue inside an open readwrite transaction on "kv", so a
+// saved workout and its pending upload are committed together. Later ops for the
+// same key replace earlier ones; the Sheet only ever needs the latest state.
+function enqueueInTx(tx: IDBTransaction, ops: Array<[string, SyncOp]>): void {
+  if (!ops.length) return;
+  const kv = tx.objectStore("kv");
+  const read = kv.get(SYNC_QUEUE_KEY);
+  read.onsuccess = () => {
+    const queue = { ...((read.result as SyncQueue | undefined) ?? {}) };
+    for (const [key, op] of ops) {
+      queue[key] = { rev: newRev(), op };
+    }
+    kv.put(queue, SYNC_QUEUE_KEY);
+  };
 }
 
 async function migrateLegacyIfNeeded(db: IDBDatabase): Promise<void> {
@@ -124,6 +151,18 @@ async function openDb(): Promise<IDBDatabase> {
   return db;
 }
 
+// Asks the browser not to evict our IndexedDB under storage pressure (Safari
+// otherwise may clear data for sites that go unused for a while).
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 export const defaultSettings: Settings = {
   weekMode: "6day",
   activeWorkoutId: null,
@@ -146,11 +185,15 @@ export async function saveSettings(profileId: string, settings: Settings): Promi
   db.close();
 }
 
-export async function listWorkouts(profileId: string): Promise<Workout[]> {
+async function allWorkouts(): Promise<Workout[]> {
   const db = await openDb();
   const rows = await reqToPromise(db.transaction("workouts").objectStore("workouts").getAll());
   db.close();
-  return (rows as Workout[])
+  return rows as Workout[];
+}
+
+export async function listWorkouts(profileId: string): Promise<Workout[]> {
+  return (await allWorkouts())
     .filter((workout) => workout.profileId === profileId)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
@@ -167,16 +210,25 @@ export async function getWorkout(profileId: string, id: string): Promise<Workout
 
 export async function saveWorkout(workout: Workout): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction("workouts", "readwrite");
+  const tx = db.transaction(["workouts", "kv"], "readwrite");
   tx.objectStore("workouts").put(workout);
+  enqueueInTx(tx, [[workoutQueueKey(workout.id), { type: "workout", workout }]]);
   await waitTx(tx);
   db.close();
 }
 
 export async function deleteWorkout(id: string): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction("workouts", "readwrite");
-  tx.objectStore("workouts").delete(id);
+  const tx = db.transaction(["workouts", "kv"], "readwrite");
+  const store = tx.objectStore("workouts");
+  const read = store.get(id);
+  read.onsuccess = () => {
+    const row = read.result as Workout | undefined;
+    store.delete(id);
+    enqueueInTx(tx, [
+      [workoutQueueKey(id), { type: "delete", profileId: row?.profileId ?? DEFAULT_PROFILE_ID, workoutId: id }],
+    ]);
+  };
   await waitTx(tx);
   db.close();
 }
@@ -192,6 +244,66 @@ export async function saveMilestoneState(profileId: string, state: Record<string
   const db = await openDb();
   const tx = db.transaction("kv", "readwrite");
   tx.objectStore("kv").put(state, milestonesKey(profileId));
+  enqueueInTx(tx, [[milestonesKey(profileId), { type: "milestones", profileId, state }]]);
+  await waitTx(tx);
+  db.close();
+}
+
+export async function getSyncConfig(): Promise<SyncConfig | null> {
+  const db = await openDb();
+  const stored = await reqToPromise(db.transaction("kv").objectStore("kv").get(SYNC_CONFIG_KEY));
+  db.close();
+  return (stored as SyncConfig | undefined) ?? null;
+}
+
+export async function saveSyncConfig(config: SyncConfig | null): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction("kv", "readwrite");
+  if (config) tx.objectStore("kv").put(config, SYNC_CONFIG_KEY);
+  else tx.objectStore("kv").delete(SYNC_CONFIG_KEY);
+  await waitTx(tx);
+  db.close();
+}
+
+export async function getSyncQueue(): Promise<SyncQueue> {
+  const db = await openDb();
+  const stored = await reqToPromise(db.transaction("kv").objectStore("kv").get(SYNC_QUEUE_KEY));
+  db.close();
+  return (stored as SyncQueue | undefined) ?? {};
+}
+
+// Drops entries the server has accepted, unless they were replaced by a newer
+// change while the upload was in flight.
+export async function ackSyncEntries(sent: Array<{ key: string; rev: string }>): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction("kv", "readwrite");
+  const kv = tx.objectStore("kv");
+  const read = kv.get(SYNC_QUEUE_KEY);
+  read.onsuccess = () => {
+    const queue = { ...((read.result as SyncQueue | undefined) ?? {}) };
+    for (const { key, rev } of sent) {
+      if (queue[key]?.rev === rev) delete queue[key];
+    }
+    kv.put(queue, SYNC_QUEUE_KEY);
+  };
+  await waitTx(tx);
+  db.close();
+}
+
+// Queues every workout and milestone list on this device, for the first sync or a resend.
+export async function enqueueEverything(profileIds: string[]): Promise<void> {
+  const workouts = await allWorkouts();
+  const milestoneStates = await Promise.all(profileIds.map((id) => getMilestoneState(id)));
+  const ops: Array<[string, SyncOp]> = workouts.map((workout) => [
+    workoutQueueKey(workout.id),
+    { type: "workout", workout },
+  ]);
+  profileIds.forEach((profileId, index) => {
+    ops.push([milestonesKey(profileId), { type: "milestones", profileId, state: milestoneStates[index] }]);
+  });
+  const db = await openDb();
+  const tx = db.transaction("kv", "readwrite");
+  enqueueInTx(tx, ops);
   await waitTx(tx);
   db.close();
 }
@@ -219,28 +331,43 @@ export async function exportBackup(profileId: string): Promise<BackupPayload> {
   };
 }
 
-export async function importBackup(payload: BackupPayload): Promise<void> {
-  if (!payload || !Array.isArray(payload.workouts) || !isKnownProfileId(payload.profileId)) {
+export function validateBackup(payload: unknown): BackupPayload {
+  const candidate = payload as BackupPayload | null;
+  if (!candidate || !Array.isArray(candidate.workouts) || !isKnownProfileId(candidate.profileId)) {
     throw new Error("Invalid backup file");
   }
+  return candidate;
+}
+
+export async function importBackup(payload: BackupPayload): Promise<void> {
+  validateBackup(payload);
   const profileId = payload.profileId;
   const settings = await getSettings(profileId);
   settings.weekMode = payload.weekMode ?? settings.weekMode;
   await saveSettings(profileId, settings);
 
+  const existing = await allWorkouts();
+  const incomingIds = new Set(payload.workouts.map((workout) => workout.id));
+  const milestones = payload.milestones ?? {};
   const db = await openDb();
-  const existing = (await reqToPromise(
-    db.transaction("workouts").objectStore("workouts").getAll(),
-  )) as Workout[];
   const tx = db.transaction(["workouts", "kv"], "readwrite");
   const workoutStore = tx.objectStore("workouts");
+  const ops: Array<[string, SyncOp]> = [];
   for (const workout of existing) {
-    if (workout.profileId === profileId) workoutStore.delete(workout.id);
+    if (workout.profileId !== profileId) continue;
+    workoutStore.delete(workout.id);
+    if (!incomingIds.has(workout.id)) {
+      ops.push([workoutQueueKey(workout.id), { type: "delete", profileId, workoutId: workout.id }]);
+    }
   }
   for (const workout of payload.workouts) {
-    workoutStore.put({ ...workout, profileId });
+    const row = { ...workout, profileId };
+    workoutStore.put(row);
+    ops.push([workoutQueueKey(row.id), { type: "workout", workout: row }]);
   }
-  tx.objectStore("kv").put(payload.milestones ?? {}, milestonesKey(profileId));
+  tx.objectStore("kv").put(milestones, milestonesKey(profileId));
+  ops.push([milestonesKey(profileId), { type: "milestones", profileId, state: milestones }]);
+  enqueueInTx(tx, ops);
   await waitTx(tx);
   db.close();
 }
