@@ -415,6 +415,97 @@ h3 {
   font-size: 0.95rem;
 }
 
+.set-note {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Swap picker: a compact inline select under the targets. */
+.swap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
+.swap select {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+  /* 16px keeps iOS from zooming on focus. */
+  font: inherit;
+  font-size: 16px;
+}
+
+.swap.locked select {
+  opacity: 0.6;
+}
+
+/* Exercise note: one small line until tapped. */
+.note-hint {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.note-toggle {
+  display: block;
+  max-width: 100%;
+  min-height: 32px;
+  margin-top: 6px;
+  padding: 0 10px;
+  overflow: hidden;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-toggle.has-note {
+  border-style: solid;
+  color: var(--text);
+}
+
+.note-edit {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.note-edit textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.35;
+  resize: none;
+  overflow: hidden;
+}
+
+.note-edit button.small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
 .set-chips {
   display: flex;
   flex-wrap: wrap;

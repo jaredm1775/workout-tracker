@@ -35,7 +35,7 @@ describe("workoutToWire", () => {
     const wire = workoutToWire(sample("w1"), "2026-10-20T12:00:00.000Z");
     expect(wire.workout).toMatchObject({
       workoutId: "w1",
-      day: "Push A",
+      day: "Push",
       durationMin: 60,
       sets: 2,
       volumeLb: 2100,
@@ -43,6 +43,38 @@ describe("workoutToWire", () => {
     expect(wire.sets.map((row) => row.set)).toEqual([1, 2]);
     expect(wire.sets[0]).toMatchObject({ exercise: "Barbell bench press", e1rm: 190, restSec: 170 });
     expect(wire.sets[1].restSec).toBe("");
+  });
+
+  it("names swapped and retired exercises and days", () => {
+    const wire = workoutToWire({
+      ...sample("w3"),
+      dayId: "legs-b",
+      sets: [
+        { exerciseId: "incline-db-press", setIndex: 0, weight: 60, reps: 9, completedAt: "2026-10-20T10:05:00.000Z" },
+        { exerciseId: "shrug", setIndex: 0, weight: 70, reps: 12, completedAt: "2026-10-20T10:06:00.000Z" },
+      ],
+    });
+    expect(wire.workout.day).toBe("Legs B");
+    expect(wire.sets.map((row) => row.exercise)).toEqual(["Incline dumbbell press", "Dumbbell shrug"]);
+  });
+
+  it("carries notes and swaps as JSON and restores them", () => {
+    const workout = {
+      ...sample("w4"),
+      notes: { "bench-press": "seat 4", "cable-fly": " " },
+      swaps: { "flat-machine-press": "bench-press" },
+    };
+    const wire = workoutToWire(workout);
+    expect(wire.workout.notes).toBe('{"bench-press":"seat 4"}');
+    expect(wire.workout.swaps).toBe('{"flat-machine-press":"bench-press"}');
+    expect(workoutToWire(sample("w5")).workout.notes).toBe("");
+
+    const [restored] = restoredToWorkouts([
+      { ...sample("w4"), notes: String(wire.workout.notes), swaps: String(wire.workout.swaps) },
+    ]);
+    expect(restored.notes).toEqual({ "bench-press": "seat 4" });
+    expect(restored.swaps).toEqual({ "flat-machine-press": "bench-press" });
+    expect("notes" in restoredToWorkouts([{ ...sample("w6"), notes: "" }])[0]).toBe(false);
   });
 
   it("leaves duration blank while the workout is in progress", () => {
@@ -85,7 +117,6 @@ describe("sync queue", () => {
     await importBackup({
       exportedAt: "2026-10-20T00:00:00.000Z",
       profileId: "jared",
-      weekMode: "6day",
       workouts: [sample("new")],
       milestones: {},
     });

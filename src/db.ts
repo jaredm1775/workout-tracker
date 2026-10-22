@@ -1,5 +1,5 @@
 import { DEFAULT_PROFILE_ID, isKnownProfileId } from "./profiles";
-import type { Milestone, Settings, SyncConfig, SyncOp, SyncQueue, WeekMode, Workout } from "./types";
+import type { Milestone, Settings, SyncConfig, SyncOp, SyncQueue, Workout } from "./types";
 
 const DB_NAME = "workout-tracker";
 const DB_VERSION = 1;
@@ -164,7 +164,6 @@ export async function requestPersistentStorage(): Promise<boolean> {
 }
 
 export const defaultSettings: Settings = {
-  weekMode: "6day",
   activeWorkoutId: null,
   restStartedAt: null,
   restPrescribed: null,
@@ -353,21 +352,15 @@ export async function mergeRestored(
 export interface BackupPayload {
   exportedAt: string;
   profileId: string;
-  weekMode: WeekMode;
   workouts: Workout[];
   milestones: Record<string, boolean>;
 }
 
 export async function exportBackup(profileId: string): Promise<BackupPayload> {
-  const [settings, workouts, milestones] = await Promise.all([
-    getSettings(profileId),
-    listWorkouts(profileId),
-    getMilestoneState(profileId),
-  ]);
+  const [workouts, milestones] = await Promise.all([listWorkouts(profileId), getMilestoneState(profileId)]);
   return {
     exportedAt: new Date().toISOString(),
     profileId,
-    weekMode: settings.weekMode,
     workouts,
     milestones,
   };
@@ -384,10 +377,6 @@ export function validateBackup(payload: unknown): BackupPayload {
 export async function importBackup(payload: BackupPayload): Promise<void> {
   validateBackup(payload);
   const profileId = payload.profileId;
-  const settings = await getSettings(profileId);
-  settings.weekMode = payload.weekMode ?? settings.weekMode;
-  await saveSettings(profileId, settings);
-
   const existing = await allWorkouts();
   const incomingIds = new Set(payload.workouts.map((workout) => workout.id));
   const milestones = payload.milestones ?? {};

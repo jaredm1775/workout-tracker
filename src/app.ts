@@ -29,7 +29,7 @@ import {
 } from "./db";
 import { profileById, PROFILES, resolveProfileId } from "./profiles";
 import { columnChart, lineChart } from "./charts";
-import { milestoneCatalog, programFor } from "./programs";
+import { dayLabel, exerciseName, findExercise, milestoneCatalog, programFor } from "./programs";
 import {
   dayStreak,
   exerciseSummaries,
@@ -43,6 +43,7 @@ import {
 import {
   formatLastSession,
   isLateFinish,
+  lastNote,
   lastSetAt,
   lastWeight,
   lastWorkingSets,
@@ -50,8 +51,8 @@ import {
   nextTargetWeight,
   suggestedDayId,
   suggestedFinishAt,
+  swappedExercise,
   todayDate,
-  visibleDays,
 } from "./progression";
 import {
   elapsedSeconds,
@@ -106,6 +107,8 @@ let selectedCalendarDate = todayDate();
 let milestones: Milestone[] = [];
 // Explicit open/closed choices per exercise; without one, a card closes once every set is logged.
 let collapsedOverride: Record<string, boolean> = {};
+// Exercise note fields expanded for editing; all start collapsed.
+let openNotes = new Set<string>();
 let syncConfig: SyncConfig | null = null;
 let syncMessage = "";
 let progressRange = 12;
@@ -120,10 +123,6 @@ function days(): Day[] {
   return currentProgram().days;
 }
 
-function hasWeekToggle(): boolean {
-  return days().some((day) => day.id === "legs-b");
-}
-
 function draftKey(exerciseId: string, setIndex: number): string {
   return `${exerciseId}:${setIndex}`;
 }
@@ -133,14 +132,16 @@ function dayById(id: string): Day | undefined {
 }
 
 function exerciseById(id: string): Exercise | undefined {
-  return days()
-    .flatMap((day) => day.exercises)
-    .find((exercise) => exercise.id === id);
+  return findExercise(profileId, id);
 }
 
-function visible(): Day[] {
-  return visibleDays(days(), settings.weekMode);
+// The active day's exercises as they will be logged, with this session's swaps applied.
+function sessionExercises(): Exercise[] {
+  if (!activeWorkout) return [];
+  const swaps = activeWorkout.swaps;
+  return (dayById(activeWorkout.dayId)?.exercises ?? []).map((slot) => swappedExercise(slot, swaps));
 }
+
 
 function sessionElapsed(): number {
   if (!activeWorkout) return 0;
@@ -193,9 +194,7 @@ async function refresh(): Promise<void> {
 
 function seedDrafts(): void {
   if (!activeWorkout) return;
-  const day = dayById(activeWorkout.dayId);
-  if (!day) return;
-  for (const exercise of day.exercises) {
+  for (const exercise of sessionExercises()) {
     const suggested = nextTargetWeight(exercise, workouts) ?? lastWeight(workouts, exercise.id) ?? 0;
     for (let i = 0; i < exercise.sets; i += 1) {
       const logged = activeWorkout.sets.find(
@@ -250,6 +249,7 @@ async function startWorkout(dayId: string): Promise<void> {
   activeWorkout = workout;
   settings.activeWorkoutId = workout.id;
   collapsedOverride = {};
+  openNotes = new Set();
   touchedDrafts = new Set();
   await saveWorkout(workout);
   await saveSettings(profileId, settings);
@@ -292,6 +292,31 @@ async function completeSet(exercise: Exercise, setIndex: number): Promise<void> 
   await saveWorkout(activeWorkout);
   scheduleSync();
   await startRest(exercise.restSeconds);
+}
+
+async function swapExercise(slotId: string, choiceId: string): Promise<void> {
+  if (!activeWorkout) return;
+  const swaps = { ...activeWorkout.swaps };
+  if (choiceId === slotId) delete swaps[slotId];
+  else swaps[slotId] = choiceId;
+  activeWorkout.swaps = swaps;
+  await saveWorkout(activeWorkout);
+  scheduleSync();
+  seedDrafts();
+  render();
+}
+
+async function saveNotes(): Promise<void> {
+  if (!activeWorkout?.notes) return;
+  const notes = Object.fromEntries(Object.entries(activeWorkout.notes).filter(([, text]) => text.trim()));
+  activeWorkout.notes = notes;
+  await saveWorkout(activeWorkout);
+  scheduleSync();
+}
+
+function growNote(field: HTMLTextAreaElement): void {
+  field.style.height = "auto";
+  field.style.height = `${field.scrollHeight}px`;
 }
 
 async function finishWorkout(): Promise<void> {
@@ -379,22 +404,35 @@ function setChips(sets: LoggedSet[]): string {
     .join("");
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}
+
 // One row per exercise, in program order, with its sets as chips that wrap whole.
 function setLines(workout: Workout): string {
-  const order = new Map(days().flatMap((day) => day.exercises).map((exercise, index) => [exercise.id, index]));
+  const order = new Map<string, number>();
+  days()
+    .flatMap((day) => day.exercises)
+    .forEach((exercise, index) => {
+      for (const id of [exercise.id, ...(exercise.alternatives ?? []).map((item) => item.id)]) {
+        if (!order.has(id)) order.set(id, index);
+      }
+    });
   const groups = new Map<string, LoggedSet[]>();
   for (const set of workout.sets) {
     groups.set(set.exerciseId, [...(groups.get(set.exerciseId) ?? []), set]);
   }
   return [...groups]
     .sort(([a], [b]) => (order.get(a) ?? 999) - (order.get(b) ?? 999))
-    .map(
-      ([exerciseId, sets]) => `
+    .map(([exerciseId, sets]) => {
+      const note = workout.notes?.[exerciseId]?.trim();
+      return `
       <div class="set-group">
-        <div class="set-group-name">${exerciseById(exerciseId)?.name ?? exerciseId}</div>
+        <div class="set-group-name">${exerciseName(profileId, exerciseId)}</div>
         <div class="set-chips">${setChips(sets)}</div>
-      </div>`,
-    )
+        ${note ? `<div class="muted set-note">${escapeHtml(note)}</div>` : ""}
+      </div>`;
+    })
     .join("");
 }
 
@@ -427,7 +465,7 @@ function renderTimer(): string {
 }
 
 function renderToday(): string {
-  const suggested = suggestedDayId(days(), lastFinishedDayId(), settings.weekMode);
+  const suggested = suggestedDayId(days(), lastFinishedDayId());
   const activeDay = activeWorkout ? dayById(activeWorkout.dayId) : null;
   const week = weekDates();
   const weekStart = formatDateKey(week[0]);
@@ -444,14 +482,6 @@ function renderToday(): string {
           <h2>${formatWeekRange(week)}</h2>
           <div class="muted">${trained.length} ${dayWord} Trained</div>
         </div>
-        ${
-          hasWeekToggle()
-            ? `<div class="toggle">
-                <button data-week="6day" class="${settings.weekMode === "6day" ? "active" : ""}">6-Day</button>
-                <button data-week="5day" class="${settings.weekMode === "5day" ? "active" : ""}">5-Day</button>
-              </div>`
-            : ""
-        }
       </div>
       <div class="week-strip">
         ${week
@@ -486,7 +516,7 @@ function renderToday(): string {
     <section class="card">
       <div class="label">Start a Day</div>
       <div class="day-grid">
-        ${visible()
+        ${days()
           .map(
             (day) => `
           <button class="chip ${day.id === suggested ? "suggested" : ""}" data-start="${day.id}">
@@ -505,7 +535,7 @@ function renderToday(): string {
 }
 
 function currentStreak(): Streak {
-  return dayStreak(workouts, visible().length, todayDate());
+  return dayStreak(workouts, days().length, todayDate());
 }
 
 function weekdayLabel(dateKey: string): string {
@@ -620,6 +650,39 @@ function renderSetRow(exercise: Exercise, setIndex: number): string {
   `;
 }
 
+// Only shown for exercises the program gives alternatives, so other programs look unchanged.
+function renderSwap(slot: Exercise, exercise: Exercise, logged: number): string {
+  if (!slot.alternatives?.length) return "";
+  const options = [slot, ...slot.alternatives]
+    .map((item) => `<option value="${item.id}" ${item.id === exercise.id ? "selected" : ""}>${item.name}</option>`)
+    .join("");
+  return `
+    <label class="swap ${logged ? "locked" : ""}">
+      <span class="muted">${logged ? "Swap locked after a logged set" : "Swap"}</span>
+      <select data-swap="${slot.id}" ${logged ? "disabled" : ""} aria-label="Swap ${slot.name}">${options}</select>
+    </label>`;
+}
+
+function renderNote(exercise: Exercise): string {
+  if (!currentProgram().exerciseNotes || !activeWorkout) return "";
+  const note = activeWorkout.notes?.[exercise.id] ?? "";
+  const previous = lastNote(workouts, exercise.id);
+  const hint = previous ? `<div class="muted note-hint">Last note: ${escapeHtml(previous)}</div>` : "";
+  if (!openNotes.has(exercise.id)) {
+    return `
+      ${hint}
+      <button class="note-toggle ${note.trim() ? "has-note" : ""}" data-note-toggle="${exercise.id}">
+        ${note.trim() ? escapeHtml(note.trim()) : "+ Note"}
+      </button>`;
+  }
+  return `
+    ${hint}
+    <div class="note-edit">
+      <textarea rows="1" data-note="${exercise.id}" placeholder="Seat height, machine swap, how it felt…">${escapeHtml(note)}</textarea>
+      <button class="small" data-note-toggle="${exercise.id}">Done</button>
+    </div>`;
+}
+
 function renderWorkout(): string {
   if (!activeWorkout) return `<section class="card">No active workout.</section>`;
   const day = dayById(activeWorkout.dayId);
@@ -646,7 +709,8 @@ function renderWorkout(): string {
       ${day.notes ? `<p class="muted day-notes">${day.notes}</p>` : ""}
     </section>
     ${day.exercises
-      .map((exercise) => {
+      .map((slot) => {
+        const exercise = swappedExercise(slot, activeWorkout?.swaps);
         const last = lastWorkingSets(workouts, exercise.id);
         const next = nextTargetWeight(exercise, workouts);
         const side = exercise.laterality === "per_side" ? " each side" : "";
@@ -674,6 +738,8 @@ function renderWorkout(): string {
             <div class="muted">Last: ${formatLastSession(last)}</div>
             <div>Next: ${next == null ? "Choose a starting weight" : `${next} lb`}</div>
             ${exercise.notes ? `<div class="muted">${exercise.notes}</div>` : ""}
+            ${renderSwap(slot, exercise, count)}
+            ${renderNote(exercise)}
             ${Array.from({ length: exercise.sets }, (_, i) => renderSetRow(exercise, i)).join("")}`
             }
           </section>
@@ -705,14 +771,14 @@ function renderHistory(): string {
   }
   return workouts
     .map((workout) => {
-      const day = dayById(workout.dayId);
+      const day = dayLabel(profileId, workout.dayId);
       const lines = setLines(workout);
       return `
         <section class="card">
           <div class="row">
             <div>
               <div class="muted">${historyMeta(workout)}</div>
-              <h3>${day?.name ?? workout.dayId}</h3>
+              <h3>${day.name}</h3>
             </div>
             <button class="danger small" data-delete-workout="${workout.id}">Delete</button>
           </div>
@@ -779,13 +845,13 @@ function renderCalendar(): string {
         selected.length
           ? selected
               .map((workout) => {
-                const day = dayById(workout.dayId);
+                const day = dayLabel(profileId, workout.dayId);
                 const lines = setLines(workout);
                 return `
                   <div class="cal-detail">
                     <div class="muted">${historyMeta(workout)}</div>
-                    <h3>${day?.name ?? workout.dayId}</h3>
-                    ${day?.focus ? `<div class="muted">${day.focus}</div>` : ""}
+                    <h3>${day.name}</h3>
+                    ${day.focus ? `<div class="muted">${day.focus}</div>` : ""}
                     ${lines || `<div class="muted">No sets logged.</div>`}
                   </div>`;
               })
@@ -832,7 +898,7 @@ function renderProgress(): string {
   const buckets = weeklyBuckets(workouts, weeks, today);
   const since = buckets[0].start;
   const streak = currentStreak();
-  const planned = visible().length;
+  const planned = days().length;
   const inRange = workoutsSince(workouts, since);
   const perWeek = inRange / weeks;
 
@@ -840,7 +906,7 @@ function renderProgress(): string {
   if (!progressExercise || !summaries.some((item) => item.exerciseId === progressExercise)) {
     progressExercise = summaries[0]?.exerciseId ?? null;
   }
-  const nameOf = (id: string) => exerciseById(id)?.name ?? id;
+  const nameOf = (id: string) => exerciseName(profileId, id);
   const series = progressExercise ? liftSeries(workouts, progressExercise).filter((point) => point.date >= since) : [];
   const metricValue = (point: LiftPoint) => (progressMetric === "e1rm" ? point.e1rm : point.topWeight);
   const change = series.length > 1 ? metricValue(series[series.length - 1]) - metricValue(series[0]) : 0;
@@ -1179,13 +1245,6 @@ function bind(): void {
       return;
     }
 
-    if (target.dataset.week) {
-      settings.weekMode = target.dataset.week === "5day" ? "5day" : "6day";
-      await saveSettings(profileId, settings);
-      render();
-      return;
-    }
-
     if (target.dataset.calDate) {
       openCalendarDate(target.dataset.calDate);
       return;
@@ -1328,9 +1387,27 @@ function bind(): void {
     }
 
     if (target.dataset.complete && target.dataset.set) {
-      const day = activeWorkout ? dayById(activeWorkout.dayId) : undefined;
-      const exercise = day?.exercises.find((item) => item.id === target.dataset.complete);
+      const exercise = sessionExercises().find((item) => item.id === target.dataset.complete);
       if (exercise) await completeSet(exercise, Number(target.dataset.set));
+      return;
+    }
+
+    if (target.dataset.noteToggle) {
+      const id = target.dataset.noteToggle;
+      if (openNotes.has(id)) {
+        openNotes.delete(id);
+        await saveNotes();
+      } else {
+        openNotes.add(id);
+      }
+      render();
+      if (openNotes.has(id)) {
+        const field = root.querySelector<HTMLTextAreaElement>(`textarea[data-note="${id}"]`);
+        if (field) {
+          growNote(field);
+          field.focus();
+        }
+      }
       return;
     }
 
@@ -1391,11 +1468,26 @@ function bind(): void {
   });
   root.addEventListener("focusout", () => hideChartTip());
 
+  root.addEventListener("input", (event) => {
+    const field = event.target;
+    if (!(field instanceof HTMLTextAreaElement) || !field.dataset.note || !activeWorkout) return;
+    activeWorkout.notes = { ...activeWorkout.notes, [field.dataset.note]: field.value };
+    growNote(field);
+  });
+
   root.addEventListener("change", async (event) => {
     const target = event.target;
     if (target instanceof HTMLSelectElement && target.id === "progress-exercise") {
       progressExercise = target.value;
       render();
+      return;
+    }
+    if (target instanceof HTMLSelectElement && target.dataset.swap) {
+      await swapExercise(target.dataset.swap, target.value);
+      return;
+    }
+    if (target instanceof HTMLTextAreaElement && target.dataset.note) {
+      await saveNotes();
       return;
     }
     if (!(target instanceof HTMLInputElement)) return;

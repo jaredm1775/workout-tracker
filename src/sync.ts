@@ -8,7 +8,7 @@ import {
   type RestoreResult,
 } from "./db";
 import { isKnownProfileId, PROFILES } from "./profiles";
-import { findDay, findExercise, milestoneCatalog, programFor } from "./programs";
+import { dayLabel, exerciseName, milestoneCatalog, programFor } from "./programs";
 import { estimatedOneRepMax } from "./progression";
 import type { SyncConfig, SyncOp, Workout } from "./types";
 
@@ -97,10 +97,26 @@ export interface WireMilestones {
 
 export type WireOp = WireWorkout | WireDelete | WireMilestones;
 
+function jsonOrBlank(map: Record<string, string> | undefined): string {
+  const entries = Object.entries(map ?? {}).filter(([, value]) => value.trim());
+  return entries.length ? JSON.stringify(Object.fromEntries(entries)) : "";
+}
+
+function parseMap(value: unknown): Record<string, string> | undefined {
+  if (value && typeof value === "object") return value as Record<string, string>;
+  if (typeof value !== "string" || !value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Flattens a workout into the rows the Sheet stores, with names resolved from
 // the program so the Sheet is readable without the app.
 export function workoutToWire(workout: Workout, updatedAt = new Date().toISOString()): WireWorkout {
-  const day = findDay(workout.profileId, workout.dayId);
+  const day = dayLabel(workout.profileId, workout.dayId);
   const sets = [...workout.sets].sort(
     (a, b) => a.completedAt.localeCompare(b.completedAt) || a.setIndex - b.setIndex,
   );
@@ -115,8 +131,8 @@ export function workoutToWire(workout: Workout, updatedAt = new Date().toISOStri
       workoutId: workout.id,
       profile: workout.profileId,
       date: workout.date,
-      day: day?.name ?? workout.dayId,
-      focus: day?.focus ?? "",
+      day: day.name,
+      focus: day.focus,
       startedAt: workout.startedAt,
       finishedAt: workout.finishedAt ?? "",
       durationMin,
@@ -124,13 +140,15 @@ export function workoutToWire(workout: Workout, updatedAt = new Date().toISOStri
       volumeLb: round1(volume),
       updatedAt,
       dayId: workout.dayId,
+      notes: jsonOrBlank(workout.notes),
+      swaps: jsonOrBlank(workout.swaps),
     },
     sets: sets.map((set) => ({
       workoutId: workout.id,
       profile: workout.profileId,
       date: workout.date,
-      day: day?.name ?? workout.dayId,
-      exercise: findExercise(workout.profileId, set.exerciseId)?.name ?? set.exerciseId,
+      day: day.name,
+      exercise: exerciseName(workout.profileId, set.exerciseId),
       exerciseId: set.exerciseId,
       set: set.setIndex + 1,
       weight: set.weight,
@@ -166,9 +184,12 @@ interface SheetReply {
   milestones?: Record<string, Record<string, boolean>>;
 }
 
-export interface RestoredWorkout extends Omit<Workout, "finishedAt"> {
+export interface RestoredWorkout extends Omit<Workout, "finishedAt" | "notes" | "swaps"> {
   finishedAt?: string | null;
   dayName?: string;
+  // JSON text from the Sheet.
+  notes?: string | Record<string, string>;
+  swaps?: string | Record<string, string>;
 }
 
 async function call(config: SyncConfig, payload: Record<string, unknown>): Promise<SheetReply> {
@@ -196,22 +217,29 @@ async function post(config: SyncConfig, ops: WireOp[]): Promise<void> {
 // Rows written before the Sheet had a dayId column only carry the day's name.
 function resolveDayId(workout: RestoredWorkout): string {
   if (workout.dayId) return workout.dayId;
-  const day = programFor(workout.profileId).days.find((item) => item.name === workout.dayName);
+  const program = programFor(workout.profileId);
+  const day = [...program.days, ...(program.archive?.days ?? [])].find((item) => item.name === workout.dayName);
   return day?.id ?? workout.dayName ?? "";
 }
 
 export function restoredToWorkouts(rows: RestoredWorkout[]): Workout[] {
   return rows
     .filter((row) => row.id && isKnownProfileId(row.profileId))
-    .map((row) => ({
-      id: row.id,
-      profileId: row.profileId,
-      dayId: resolveDayId(row),
-      date: row.date,
-      startedAt: row.startedAt,
-      ...(row.finishedAt ? { finishedAt: row.finishedAt } : {}),
-      sets: row.sets ?? [],
-    }));
+    .map((row) => {
+      const notes = parseMap(row.notes);
+      const swaps = parseMap(row.swaps);
+      return {
+        id: row.id,
+        profileId: row.profileId,
+        dayId: resolveDayId(row),
+        date: row.date,
+        startedAt: row.startedAt,
+        ...(row.finishedAt ? { finishedAt: row.finishedAt } : {}),
+        sets: row.sets ?? [],
+        ...(notes ? { notes } : {}),
+        ...(swaps ? { swaps } : {}),
+      };
+    });
 }
 
 // Pulls history back from the Sheet. Only adds what this phone is missing, so

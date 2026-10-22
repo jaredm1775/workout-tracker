@@ -15,7 +15,7 @@
 
 var SHEETS = {
   Workouts: ["workoutId", "profile", "date", "day", "focus", "startedAt", "finishedAt",
-             "durationMin", "sets", "volumeLb", "updatedAt", "dayId"],
+             "durationMin", "sets", "volumeLb", "updatedAt", "dayId", "notes", "swaps"],
   Sets: ["workoutId", "profile", "date", "day", "exercise", "exerciseId", "set",
          "weight", "reps", "e1rm", "restSec", "completedAt"],
   Milestones: ["profile", "milestoneId", "lift", "target", "done", "updatedAt"],
@@ -116,6 +116,8 @@ function restore_() {
       date: String(row.date),
       startedAt: String(row.startedAt),
       finishedAt: row.finishedAt ? String(row.finishedAt) : undefined,
+      notes: row.notes ? String(row.notes) : undefined,
+      swaps: row.swaps ? String(row.swaps) : undefined,
       sets: [],
     };
   });

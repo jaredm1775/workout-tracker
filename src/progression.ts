@@ -1,4 +1,4 @@
-import type { Day, Exercise, LoggedSet, Workout } from "./types";
+import type { Alternative, Day, Exercise, LoggedSet, Workout } from "./types";
 
 export function workoutsForExercise(workouts: Workout[], exerciseId: string): Workout[] {
   return workouts.filter((workout) =>
@@ -24,9 +24,37 @@ export function lastWeight(workouts: Workout[], exerciseId: string): number | nu
   return sets[sets.length - 1].weight;
 }
 
+// The most recent note left on this exercise in a finished session.
+export function lastNote(workouts: Workout[], exerciseId: string): string | null {
+  for (const workout of workouts) {
+    if (!workout.finishedAt) continue;
+    const note = workout.notes?.[exerciseId]?.trim();
+    if (note) return note;
+  }
+  return null;
+}
+
+// An alternative as a full exercise: anything it leaves out comes from the program exercise.
+export function asExercise(parent: Exercise, alternative: Alternative): Exercise {
+  const { alternatives: _ignored, ...base } = parent;
+  return { ...base, notes: undefined, ...alternative };
+}
+
+// The exercise to log for this program slot, honoring the session's swap if any.
+export function swappedExercise(parent: Exercise, swaps: Record<string, string> | undefined): Exercise {
+  const altId = swaps?.[parent.id];
+  const alternative = altId ? parent.alternatives?.find((item) => item.id === altId) : undefined;
+  return alternative ? asExercise(parent, alternative) : parent;
+}
+
 export function nextTargetWeight(exercise: Exercise, workouts: Workout[]): number | null {
   const sets = lastWorkingSets(workouts, exercise.id);
   if (!sets.length) return null;
+  if (exercise.progression === "topSet") {
+    // Low-volume work to failure: later sets are back-offs, so only the first set has to hit the top.
+    const top = sets[0];
+    return top.reps >= exercise.repMax && exercise.incrementLb > 0 ? top.weight + exercise.incrementLb : top.weight;
+  }
   const lastLoad = sets[sets.length - 1].weight;
   const hitTop =
     sets.length >= exercise.sets &&
@@ -70,16 +98,11 @@ export function formatLastSession(sets: LoggedSet[]): string {
   return sets.map((set) => `${set.weight} × ${set.reps}`).join(", ");
 }
 
-export function suggestedDayId(days: Day[], lastDayId: string | null, weekMode: "6day" | "5day"): string {
-  const rotation = weekMode === "5day" ? days.filter((day) => day.id !== "legs-b") : days;
-  if (!lastDayId) return rotation[0].id;
-  const index = rotation.findIndex((day) => day.id === lastDayId);
-  if (index === -1) return rotation[0].id;
-  return rotation[(index + 1) % rotation.length].id;
-}
-
-export function visibleDays(days: Day[], weekMode: "6day" | "5day"): Day[] {
-  return weekMode === "5day" ? days.filter((day) => day.id !== "legs-b") : days;
+export function suggestedDayId(days: Day[], lastDayId: string | null): string {
+  if (!lastDayId) return days[0].id;
+  const index = days.findIndex((day) => day.id === lastDayId);
+  if (index === -1) return days[0].id;
+  return days[(index + 1) % days.length].id;
 }
 
 export function newId(): string {

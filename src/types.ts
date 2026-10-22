@@ -1,4 +1,3 @@
-export type WeekMode = "6day" | "5day";
 export type Laterality = "bilateral" | "per_side";
 
 export interface Exercise {
@@ -11,6 +10,18 @@ export interface Exercise {
   incrementLb: number;
   notes?: string;
   laterality?: Laterality;
+  // "topSet": add load once the first working set reaches repMax. Default "allSets".
+  progression?: "allSets" | "topSet";
+  // Swaps offered at the gym. Each logs under its own id; missing fields come from the parent.
+  alternatives?: Alternative[];
+}
+
+export type Alternative = Partial<Omit<Exercise, "alternatives">> & { id: string; name: string };
+
+// Names for exercises and days no longer in the program, so old history still reads well.
+export interface Archive {
+  days?: Array<{ id: string; name: string; focus?: string }>;
+  exercises?: Array<{ id: string; name: string }>;
 }
 
 export interface Day {
@@ -25,6 +36,9 @@ export interface Program {
   name: string;
   unit: "lb";
   days: Day[];
+  // Shows a collapsible note field on each exercise during a workout.
+  exerciseNotes?: boolean;
+  archive?: Archive;
 }
 
 export interface LoggedSet {
@@ -45,6 +59,10 @@ export interface Workout {
   startedAt: string;
   finishedAt?: string;
   sets: LoggedSet[];
+  // Program exercise id -> alternative id chosen for this session.
+  swaps?: Record<string, string>;
+  // Exercise id (as logged) -> note.
+  notes?: Record<string, string>;
 }
 
 export interface Milestone {
@@ -55,7 +73,6 @@ export interface Milestone {
 }
 
 export interface Settings {
-  weekMode: WeekMode;
   activeWorkoutId: string | null;
   restStartedAt: string | null;
   restPrescribed: number | null;
