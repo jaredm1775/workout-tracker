@@ -313,18 +313,19 @@
           ]
         },
         {
-          "id": "overhead-press",
-          "name": "Overhead press",
+          "id": "seated-db-shoulder-press",
+          "name": "Seated dumbbell shoulder press",
           "sets": 1,
           "repMin": 5,
           "repMax": 9,
-          "restSeconds": 180,
+          "restSeconds": 150,
           "incrementLb": 5,
           "progression": "topSet",
-          "notes": "Barbell: stop 1 rep short of failure.",
+          "notes": "Dumbbells over the barbell for now. Drop them at failure.",
           "alternatives": [
-            { "id": "machine-shoulder-press", "name": "Machine shoulder press", "notes": "Go to failure." },
-            { "id": "seated-db-shoulder-press", "name": "Seated dumbbell shoulder press" }
+            { "id": "machine-shoulder-press", "name": "Machine shoulder press" },
+            { "id": "smith-shoulder-press", "name": "Seated Smith shoulder press", "notes": "Set the safety stoppers." },
+            { "id": "overhead-press", "name": "Barbell overhead press", "restSeconds": 180, "notes": "Stop 1 rep short of failure." }
           ]
         },
         {

@@ -18,7 +18,9 @@ This is general training guidance, not medical advice. Skip or substitute anythi
 | 6 | Lower | Hamstrings & glutes |
 | 7 | Rest | |
 
-The app's "Next" chip rotates Push → Pull → Legs → Upper → Lower. Take your rest days after Legs and after Lower.
+The app's "Next" chip is always the day after your most recently finished session in the order Push → Pull → Legs → Upper → Lower (then back to Push). If you skip ahead and do Upper, Next becomes Lower. Take your rest days after Legs and after Lower.
+
+For now, presses use dumbbells (or the Smith machine) rather than a barbell. The barbell versions stay under **Swap**.
 
 ## How hard: technical failure
 
@@ -86,7 +88,7 @@ Typical increments:
 |---|---|---:|---|
 | Incline machine press | 2 × 5–9 | 2:30 | Incline Smith, incline DB |
 | Neutral-grip pulldown | 2 × 5–9 | 2:30 | Weighted pull-up |
-| Overhead press | 1 × 5–9 | 3:00 | Machine shoulder press, seated DB press |
+| Seated dumbbell shoulder press | 1 × 5–9 | 2:30 | Machine shoulder press, Smith shoulder press, barbell OHP |
 | T-bar row | 2 × 5–9 | 2:30 | Chest-supported row, barbell row, seal row |
 | Cable lateral raise | 2 × 8–12 | 1:30 | DB lateral, machine lateral |
 | EZ-bar preacher curl | 1 × 5–9 | 1:30 | EZ-bar curl |
@@ -125,6 +127,7 @@ After each 8-week block, or whenever your joints feel beat up, take a deload wee
 3. The rest timer starts on its own. Use −15 / +15 or Skip. Your actual rest time is saved on the next set.
 4. **Swap** (on exercises that have alternatives) changes the lift for today's session. Each alternative keeps its own history and "Next" weight. Swapping locks once you've logged a set for that exercise.
 5. **+ Note** opens a small note on the exercise, for things like seat height or a one-off machine. Next session it shows up as "Last note". Notes appear in History and sync to the Sheet.
-6. Tap **Finish** when the session is done.
-7. Use Calendar to see which days you trained this week and this month.
-8. Export JSON from Backup if you want a copy. That file is private unless you put it in the public repo.
+6. **+ Set / − Set** under an exercise adds a set for today or removes one you haven't logged. It doesn't change the program.
+7. Tap **Finish** when the session is done.
+8. Use Calendar to see which days you trained this week and this month.
+9. Export JSON from Backup if you want a copy. That file is private unless you put it in the public repo.

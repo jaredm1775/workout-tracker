@@ -506,6 +506,30 @@ h3 {
   font-size: 0.85rem;
 }
 
+.set-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.set-count span {
+  flex: 1;
+}
+
+.set-count button.small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+.set-count button:disabled {
+  opacity: 0.4;
+}
+
 .set-chips {
   display: flex;
   flex-wrap: wrap;

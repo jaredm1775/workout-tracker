@@ -63,6 +63,9 @@ export interface Workout {
   swaps?: Record<string, string>;
   // Exercise id (as logged) -> note.
   notes?: Record<string, string>;
+  // Exercise id (as logged) -> sets added (or removed, if negative) to the program's count this session.
+  // Kept on the phone only; the Sheet already gets every logged set.
+  extraSets?: Record<string, number>;
 }
 
 export interface Milestone {

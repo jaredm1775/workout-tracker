@@ -142,6 +142,15 @@ function sessionExercises(): Exercise[] {
   return (dayById(activeWorkout.dayId)?.exercises ?? []).map((slot) => swappedExercise(slot, swaps));
 }
 
+// The program's set count plus this session's added or removed sets, never hiding a logged set.
+function setCount(exercise: Exercise): number {
+  const extra = activeWorkout?.extraSets?.[exercise.id] ?? 0;
+  const highestLogged = Math.max(
+    0,
+    ...(activeWorkout?.sets.filter((set) => set.exerciseId === exercise.id).map((set) => set.setIndex + 1) ?? []),
+  );
+  return Math.max(1, exercise.sets + extra, highestLogged);
+}
 
 function sessionElapsed(): number {
   if (!activeWorkout) return 0;
@@ -196,7 +205,7 @@ function seedDrafts(): void {
   if (!activeWorkout) return;
   for (const exercise of sessionExercises()) {
     const suggested = nextTargetWeight(exercise, workouts) ?? lastWeight(workouts, exercise.id) ?? 0;
-    for (let i = 0; i < exercise.sets; i += 1) {
+    for (let i = 0; i < setCount(exercise); i += 1) {
       const logged = activeWorkout.sets.find(
         (set) => set.exerciseId === exercise.id && set.setIndex === i,
       );
@@ -284,7 +293,7 @@ async function completeSet(exercise: Exercise, setIndex: number): Promise<void> 
     ...activeWorkout.sets.filter((set) => !(set.exerciseId === exercise.id && set.setIndex === setIndex)),
     logged,
   ];
-  for (let i = setIndex + 1; i < exercise.sets; i += 1) {
+  for (let i = setIndex + 1; i < setCount(exercise); i += 1) {
     const key = draftKey(exercise.id, i);
     const alreadyLogged = activeWorkout.sets.some((set) => set.exerciseId === exercise.id && set.setIndex === i);
     if (!alreadyLogged && !touchedDrafts.has(key) && drafts[key]) drafts[key].weight = draft.weight;
@@ -292,6 +301,26 @@ async function completeSet(exercise: Exercise, setIndex: number): Promise<void> 
   await saveWorkout(activeWorkout);
   scheduleSync();
   await startRest(exercise.restSeconds);
+}
+
+// Adds a set (copying the last set's draft) or removes the last one if it isn't logged yet.
+async function changeSetCount(exercise: Exercise, delta: number): Promise<void> {
+  if (!activeWorkout) return;
+  const count = setCount(exercise);
+  if (delta < 0 && (count <= 1 || activeWorkout.sets.some((set) => set.exerciseId === exercise.id && set.setIndex === count - 1))) {
+    return;
+  }
+  const extraSets = { ...activeWorkout.extraSets };
+  extraSets[exercise.id] = count + delta - exercise.sets;
+  if (!extraSets[exercise.id]) delete extraSets[exercise.id];
+  activeWorkout.extraSets = extraSets;
+  if (delta > 0) {
+    const previous = drafts[draftKey(exercise.id, count - 1)];
+    drafts[draftKey(exercise.id, count)] = previous ? { ...previous } : { weight: 0, reps: exercise.repMin };
+  }
+  collapsedOverride[exercise.id] = false;
+  await saveWorkout(activeWorkout);
+  render();
 }
 
 async function swapExercise(slotId: string, choiceId: string): Promise<void> {
@@ -613,7 +642,7 @@ function loggedCount(exercise: Exercise): number {
 }
 
 function isCollapsed(exercise: Exercise): boolean {
-  return collapsedOverride[exercise.id] ?? loggedCount(exercise) >= exercise.sets;
+  return collapsedOverride[exercise.id] ?? loggedCount(exercise) >= setCount(exercise);
 }
 
 function renderSetRow(exercise: Exercise, setIndex: number): string {
@@ -715,16 +744,18 @@ function renderWorkout(): string {
         const next = nextTargetWeight(exercise, workouts);
         const side = exercise.laterality === "per_side" ? " each side" : "";
         const count = loggedCount(exercise);
+        const sets = setCount(exercise);
+        const lastLogged = activeWorkout?.sets.some((set) => set.exerciseId === exercise.id && set.setIndex === sets - 1);
         const collapsed = isCollapsed(exercise);
         const today = activeWorkout?.sets
           .filter((set) => set.exerciseId === exercise.id)
           .sort((a, b) => a.setIndex - b.setIndex);
         return `
-          <section class="card exercise ${collapsed ? "collapsed" : ""} ${count >= exercise.sets ? "all-logged" : ""}">
+          <section class="card exercise ${collapsed ? "collapsed" : ""} ${count >= sets ? "all-logged" : ""}">
             <button class="exercise-head" data-toggle-exercise="${exercise.id}" aria-expanded="${!collapsed}">
               <span class="exercise-title">
                 <h3>${exercise.name}</h3>
-                <span class="muted">${count} of ${exercise.sets} sets logged</span>
+                <span class="muted">${count} of ${sets} sets logged</span>
               </span>
               <span class="chevron" aria-hidden="true">›</span>
             </button>
@@ -734,13 +765,18 @@ function renderWorkout(): string {
                   ? `<div class="set-chips">${setChips(today)}</div>`
                   : ""
                 : `
-            <div class="muted">${exercise.sets} × ${exercise.repMin}–${exercise.repMax}${side} · Rest ${formatClock(exercise.restSeconds)}</div>
+            <div class="muted">${sets} × ${exercise.repMin}–${exercise.repMax}${side} · Rest ${formatClock(exercise.restSeconds)}</div>
             <div class="muted">Last: ${formatLastSession(last)}</div>
             <div>Next: ${next == null ? "Choose a starting weight" : `${next} lb`}</div>
             ${exercise.notes ? `<div class="muted">${exercise.notes}</div>` : ""}
             ${renderSwap(slot, exercise, count)}
             ${renderNote(exercise)}
-            ${Array.from({ length: exercise.sets }, (_, i) => renderSetRow(exercise, i)).join("")}`
+            ${Array.from({ length: sets }, (_, i) => renderSetRow(exercise, i)).join("")}
+            <div class="set-count">
+              <span class="muted">${sets === exercise.sets ? `Program: ${exercise.sets}` : `Program: ${exercise.sets} · Today: ${sets}`}</span>
+              <button class="small" data-set-count="${exercise.id}" data-count-delta="-1" ${sets <= 1 || lastLogged ? "disabled" : ""}>− Set</button>
+              <button class="small" data-set-count="${exercise.id}" data-count-delta="1">+ Set</button>
+            </div>`
             }
           </section>
         `;
@@ -1389,6 +1425,12 @@ function bind(): void {
     if (target.dataset.complete && target.dataset.set) {
       const exercise = sessionExercises().find((item) => item.id === target.dataset.complete);
       if (exercise) await completeSet(exercise, Number(target.dataset.set));
+      return;
+    }
+
+    if (target.dataset.setCount && target.dataset.countDelta) {
+      const exercise = sessionExercises().find((item) => item.id === target.dataset.setCount);
+      if (exercise) await changeSetCount(exercise, Number(target.dataset.countDelta));
       return;
     }
 
