@@ -47,6 +47,24 @@ export function swappedExercise(parent: Exercise, swaps: Record<string, string> 
   return alternative ? asExercise(parent, alternative) : parent;
 }
 
+// Swaps to start a session with: each slot keeps whichever choice was logged the last time
+// it was trained, so a swap sticks until you swap back.
+export function carriedSwaps(day: Day, workouts: Workout[]): Record<string, string> | undefined {
+  const swaps: Record<string, string> = {};
+  for (const slot of day.exercises) {
+    if (!slot.alternatives?.length) continue;
+    const choices = new Set([slot.id, ...slot.alternatives.map((item) => item.id)]);
+    for (const workout of workouts) {
+      if (!workout.finishedAt) continue;
+      const logged = workout.sets.find((set) => choices.has(set.exerciseId));
+      if (!logged) continue;
+      if (logged.exerciseId !== slot.id) swaps[slot.id] = logged.exerciseId;
+      break;
+    }
+  }
+  return Object.keys(swaps).length ? swaps : undefined;
+}
+
 export function nextTargetWeight(exercise: Exercise, workouts: Workout[]): number | null {
   const sets = lastWorkingSets(workouts, exercise.id);
   if (!sets.length) return null;

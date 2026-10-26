@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  carriedSwaps,
   estimatedOneRepMax,
   isLateFinish,
   lastNote,
@@ -9,7 +10,7 @@ import {
   suggestedFinishAt,
   swappedExercise,
 } from "./progression";
-import type { Exercise, LoggedSet, Workout } from "./types";
+import type { Day, Exercise, LoggedSet, Workout } from "./types";
 
 const bench: Exercise = {
   id: "bench-press",
@@ -119,6 +120,39 @@ describe("swappedExercise", () => {
     expect(swapped).toMatchObject({ id: "incline-db-press", name: "Incline dumbbell press", sets: 3, repMax: 8, restSeconds: 120 });
     expect(swapped.notes).toBeUndefined();
     expect(swapped.alternatives).toBeUndefined();
+  });
+});
+
+describe("carriedSwaps", () => {
+  const slot: Exercise = {
+    ...bench,
+    id: "flat-machine-press",
+    name: "Flat machine press",
+    alternatives: [{ id: "flat-db-press", name: "Flat dumbbell press" }],
+  };
+  const day: Day = { id: "push-a", name: "Push A", focus: "Chest", exercises: [slot, bench] };
+  const logged = (exerciseId: string) => sets(100, [8]).map((set) => ({ ...set, exerciseId }));
+
+  it("keeps the alternative logged last time", () => {
+    const history = [workout("prev", "2026-10-17T10:00:00.000Z", logged("flat-db-press"))];
+    expect(carriedSwaps(day, history)).toEqual({ [slot.id]: "flat-db-press" });
+  });
+
+  it("goes back to the program exercise once it is logged again", () => {
+    const history = [
+      workout("prev", "2026-10-20T10:00:00.000Z", logged(slot.id)),
+      workout("old", "2026-10-17T10:00:00.000Z", logged("flat-db-press")),
+    ];
+    expect(carriedSwaps(day, history)).toBeUndefined();
+  });
+
+  it("skips unfinished sessions and ones that never trained the slot", () => {
+    const history = [
+      workout("today", "2026-10-22T10:00:00.000Z", logged(slot.id), false),
+      workout("legs", "2026-10-20T10:00:00.000Z", logged("squat")),
+      workout("old", "2026-10-17T10:00:00.000Z", logged("flat-db-press")),
+    ];
+    expect(carriedSwaps(day, history)).toEqual({ [slot.id]: "flat-db-press" });
   });
 });
 

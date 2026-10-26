@@ -41,6 +41,7 @@ import {
   type Streak,
 } from "./stats";
 import {
+  carriedSwaps,
   formatLastSession,
   isLateFinish,
   lastNote,
@@ -247,6 +248,8 @@ function restForNextSet(): number | undefined {
 }
 
 async function startWorkout(dayId: string): Promise<void> {
+  const day = dayById(dayId);
+  const swaps = day ? carriedSwaps(day, workouts) : undefined;
   const workout: Workout = {
     id: newId(),
     profileId,
@@ -254,6 +257,7 @@ async function startWorkout(dayId: string): Promise<void> {
     date: todayDate(),
     startedAt: new Date().toISOString(),
     sets: [],
+    ...(swaps ? { swaps } : {}),
   };
   activeWorkout = workout;
   settings.activeWorkoutId = workout.id;

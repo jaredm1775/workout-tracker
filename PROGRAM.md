@@ -125,7 +125,7 @@ After each 8-week block, or whenever your joints feel beat up, take a deload wee
 1. Pick today's day, or the suggested "Next" day.
 2. Enter the weight and reps, then tap **Done** on each set.
 3. The rest timer starts on its own. Use −15 / +15 or Skip. Your actual rest time is saved on the next set.
-4. **Swap** (on exercises that have alternatives) changes the lift for today's session. Each alternative keeps its own history and "Next" weight. Swapping locks once you've logged a set for that exercise.
+4. **Swap** (on exercises that have alternatives) changes the lift, and it sticks: next session starts with whatever you logged last time. Swap back to the original to return to it. Each alternative keeps its own history and "Next" weight. Swapping locks once you've logged a set for that exercise.
 5. **+ Note** opens a small note on the exercise, for things like seat height or a one-off machine. Next session it shows up as "Last note". Notes appear in History and sync to the Sheet.
 6. **+ Set / − Set** under an exercise adds a set for today or removes one you haven't logged. It doesn't change the program.
 7. Tap **Finish** when the session is done.
