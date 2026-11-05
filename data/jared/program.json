@@ -1,50 +1,50 @@
 {
-  "name": "PPL x Upper/Lower (5-day, to failure)",
+  "name": "Size PPL × Strength Upper/Lower (5-day)",
   "unit": "lb",
   "exerciseNotes": true,
   "days": [
     {
       "id": "push-a",
       "name": "Push",
-      "focus": "Chest",
-      "notes": "Warm up, then every working set to technical failure. Set 2 is a back-off.",
+      "focus": "Size · Chest, shoulders, triceps",
+      "notes": "Size day. Warm up, then every working set to technical failure. Set 2 is a back-off.",
       "exercises": [
-        {
-          "id": "incline-smith-press",
-          "name": "Incline Smith press",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 180,
-          "incrementLb": 5,
-          "progression": "topSet",
-          "notes": "Set the safety stoppers. No Smith? Tap Swap.",
-          "alternatives": [
-            { "id": "incline-machine-press", "name": "Incline machine press" },
-            { "id": "incline-db-press", "name": "Incline dumbbell press" },
-            { "id": "incline-press-b", "name": "Incline barbell press (safeties)", "notes": "Stop 1 rep short of failure." }
-          ]
-        },
         {
           "id": "flat-machine-press",
           "name": "Flat machine press",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "repMin": 8,
+          "repMax": 12,
           "restSeconds": 150,
           "incrementLb": 5,
           "progression": "topSet",
           "alternatives": [
             { "id": "flat-db-press", "name": "Flat dumbbell press" },
-            { "id": "bench-press", "name": "Barbell bench press", "notes": "Stop 1 rep short unless you have a spotter." }
+            { "id": "smith-flat-press", "name": "Flat Smith press", "notes": "Set the safety stoppers." }
+          ]
+        },
+        {
+          "id": "incline-smith-press",
+          "name": "Incline Smith press",
+          "sets": 2,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 150,
+          "incrementLb": 5,
+          "progression": "topSet",
+          "notes": "Set the safety stoppers. No Smith? Tap Swap.",
+          "alternatives": [
+            { "id": "incline-db-press", "name": "Incline dumbbell press" },
+            { "id": "incline-machine-press", "name": "Incline machine press" },
+            { "id": "incline-press-b", "name": "Incline barbell press (safeties)", "notes": "Stop 1 rep short of failure." }
           ]
         },
         {
           "id": "machine-chest-fly",
           "name": "Machine chest fly",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "sets": 1,
+          "repMin": 10,
+          "repMax": 15,
           "restSeconds": 90,
           "incrementLb": 5,
           "progression": "topSet",
@@ -57,9 +57,9 @@
           "id": "cable-lateral",
           "name": "Cable lateral raise",
           "sets": 2,
-          "repMin": 8,
-          "repMax": 12,
-          "restSeconds": 90,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 2.5,
           "progression": "topSet",
           "notes": "No swing. Stop when the arm can't reach shoulder height.",
@@ -69,44 +69,30 @@
           ]
         },
         {
-          "id": "machine-shoulder-press",
-          "name": "Machine shoulder press",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
-          "incrementLb": 5,
+          "id": "overhead-triceps-a",
+          "name": "Overhead cable triceps extension",
+          "sets": 2,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 90,
+          "incrementLb": 2.5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "seated-db-shoulder-press", "name": "Seated dumbbell shoulder press" }
+            { "id": "skullcrusher", "name": "Skullcrusher" }
           ]
         },
         {
           "id": "single-arm-cable-triceps",
           "name": "Single-arm cable triceps extension",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
+          "sets": 1,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 2.5,
           "laterality": "per_side",
           "progression": "topSet",
           "alternatives": [
             { "id": "triceps-pushdown-a", "name": "Triceps pushdown", "laterality": "bilateral" }
-          ]
-        },
-        {
-          "id": "jm-press",
-          "name": "JM press",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 120,
-          "incrementLb": 5,
-          "progression": "topSet",
-          "notes": "Smith or EZ bar. Elbows forward, bar to upper chest.",
-          "alternatives": [
-            { "id": "dips-or-cg-bench", "name": "Dips or close-grip bench", "notes": "Use an assisted dip machine if needed." }
           ]
         }
       ]
@@ -114,20 +100,20 @@
     {
       "id": "pull-a",
       "name": "Pull",
-      "focus": "Back width",
-      "notes": "Warm up, then every working set to technical failure. Set 2 is a back-off.",
+      "focus": "Size · Back & biceps",
+      "notes": "Size day. Warm up, then every working set to technical failure. Set 2 is a back-off.",
       "exercises": [
         {
           "id": "lat-pulldown-a",
           "name": "Wide-grip lat pulldown",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
           "incrementLb": 5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "weighted-pull-up", "name": "Weighted pull-up" },
+            { "id": "pulldown-b", "name": "Neutral-grip pulldown" },
             { "id": "machine-pulldown", "name": "Machine pulldown" }
           ]
         },
@@ -135,64 +121,52 @@
           "id": "chest-supported-row-a",
           "name": "Chest-supported row",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 120,
           "incrementLb": 5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "t-bar-row", "name": "T-bar row" },
+            { "id": "single-arm-cable-row", "name": "Single-arm cable row", "laterality": "per_side" },
+            { "id": "single-arm-row", "name": "Single-arm dumbbell row", "laterality": "per_side" },
             { "id": "seal-row", "name": "Seal row" }
-          ]
-        },
-        {
-          "id": "single-arm-cable-row",
-          "name": "Single-arm cable row",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
-          "incrementLb": 5,
-          "laterality": "per_side",
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "single-arm-row", "name": "Single-arm dumbbell row" }
           ]
         },
         {
           "id": "rear-delt-fly",
           "name": "Reverse pec deck",
           "sets": 2,
-          "repMin": 8,
-          "repMax": 12,
-          "restSeconds": 90,
+          "repMin": 12,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "cable-rear-delt-fly", "name": "Cable rear delt fly", "incrementLb": 2.5 }
+            { "id": "cable-rear-delt-fly", "name": "Cable rear delt fly", "incrementLb": 2.5 },
+            { "id": "face-pull-a", "name": "Face pull", "incrementLb": 2.5 }
           ]
         },
         {
           "id": "seated-db-curl",
           "name": "Seated dumbbell curl",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "repMin": 8,
+          "repMax": 12,
           "restSeconds": 90,
           "incrementLb": 2.5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "ez-curl", "name": "EZ-bar curl" },
-            { "id": "incline-curl", "name": "Incline dumbbell curl" }
+            { "id": "incline-curl", "name": "Incline dumbbell curl" },
+            { "id": "ez-curl", "name": "EZ-bar curl" }
           ]
         },
         {
           "id": "cable-hammer-curl",
           "name": "Cable hammer curl",
           "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 2.5,
           "progression": "topSet",
           "alternatives": [
@@ -204,41 +178,30 @@
     {
       "id": "legs-a",
       "name": "Legs",
-      "focus": "Quads",
-      "notes": "Warm up, then every working set to technical failure. Set 2 is a back-off.",
+      "focus": "Size · Quads",
+      "notes": "Size day. Warm up, then every working set to technical failure. Set 2 is a back-off.",
       "exercises": [
         {
           "id": "hack-squat",
           "name": "Hack squat",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 180,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 150,
           "incrementLb": 10,
           "progression": "topSet",
           "alternatives": [
-            { "id": "smith-squat", "name": "Smith squat", "notes": "Set the safety stoppers." },
+            { "id": "leg-press", "name": "Leg press" },
             { "id": "pendulum-squat", "name": "Pendulum squat" },
-            { "id": "belt-squat", "name": "Belt squat" },
-            { "id": "back-squat", "name": "Back squat (safeties)", "notes": "Stop 1 rep short of failure." }
+            { "id": "belt-squat", "name": "Belt squat" }
           ]
-        },
-        {
-          "id": "leg-press",
-          "name": "Leg press",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
-          "incrementLb": 10,
-          "progression": "topSet"
         },
         {
           "id": "leg-extension-a",
           "name": "Leg extension",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "repMin": 10,
+          "repMax": 15,
           "restSeconds": 90,
           "incrementLb": 5,
           "progression": "topSet"
@@ -247,22 +210,19 @@
           "id": "lying-leg-curl",
           "name": "Lying leg curl",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "repMin": 10,
+          "repMax": 15,
           "restSeconds": 90,
           "incrementLb": 5,
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "seated-leg-curl", "name": "Seated leg curl" }
-          ]
+          "progression": "topSet"
         },
         {
           "id": "hip-adductor",
           "name": "Hip adductor machine",
           "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 5,
           "progression": "topSet"
         },
@@ -270,9 +230,9 @@
           "id": "standing-calf",
           "name": "Standing calf raise",
           "sets": 2,
-          "repMin": 8,
-          "repMax": 12,
-          "restSeconds": 90,
+          "repMin": 10,
+          "repMax": 15,
+          "restSeconds": 75,
           "incrementLb": 10,
           "progression": "topSet",
           "notes": "Full stretch at the bottom, pause 1 second."
@@ -282,135 +242,121 @@
     {
       "id": "upper",
       "name": "Upper",
-      "focus": "Shoulders & back",
-      "notes": "Warm up, then every working set to technical failure. Set 2 is a back-off.",
+      "focus": "Strength · Bench, pull-up, row",
+      "notes": "Strength day. Ramp up, then 3 straight sets at the same weight, stopping 1–2 reps short of failure (RPE 8–9). Add weight once every set hits the top of the range.",
       "exercises": [
         {
-          "id": "incline-machine-press",
-          "name": "Incline machine press",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
+          "id": "bench-press",
+          "name": "Barbell bench press",
+          "sets": 3,
+          "repMin": 3,
+          "repMax": 6,
+          "restSeconds": 210,
           "incrementLb": 5,
-          "progression": "topSet",
+          "notes": "Safeties or a spotter. Stop 1–2 reps short.",
           "alternatives": [
-            { "id": "incline-smith-press", "name": "Incline Smith press" },
-            { "id": "incline-db-press", "name": "Incline dumbbell press" }
+            { "id": "smith-bench-press", "name": "Smith bench press", "notes": "Set the safety stoppers." },
+            { "id": "heavy-db-press", "name": "Flat dumbbell press (heavy)" }
           ]
         },
         {
-          "id": "pulldown-b",
-          "name": "Neutral-grip pulldown",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
+          "id": "weighted-pull-up",
+          "name": "Weighted pull-up",
+          "sets": 3,
+          "repMin": 3,
+          "repMax": 6,
+          "restSeconds": 180,
           "incrementLb": 5,
-          "progression": "topSet",
+          "notes": "Log the added weight (0 for bodyweight).",
           "alternatives": [
-            { "id": "weighted-pull-up", "name": "Weighted pull-up" }
-          ]
-        },
-        {
-          "id": "seated-db-shoulder-press",
-          "name": "Seated dumbbell shoulder press",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
-          "incrementLb": 5,
-          "progression": "topSet",
-          "notes": "Dumbbells over the barbell for now. Drop them at failure.",
-          "alternatives": [
-            { "id": "machine-shoulder-press", "name": "Machine shoulder press" },
-            { "id": "smith-shoulder-press", "name": "Seated Smith shoulder press", "notes": "Set the safety stoppers." },
-            { "id": "overhead-press", "name": "Barbell overhead press", "restSeconds": 180, "notes": "Stop 1 rep short of failure." }
+            { "id": "heavy-pulldown", "name": "Heavy lat pulldown" }
           ]
         },
         {
           "id": "t-bar-row",
           "name": "T-bar row",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
+          "sets": 3,
+          "repMin": 4,
+          "repMax": 6,
+          "restSeconds": 180,
           "incrementLb": 5,
-          "progression": "topSet",
           "alternatives": [
-            { "id": "chest-supported-row-a", "name": "Chest-supported row" },
-            { "id": "barbell-row-b", "name": "Barbell row" },
-            { "id": "seal-row", "name": "Seal row" }
+            { "id": "barbell-row-b", "name": "Barbell row" }
           ]
         },
         {
-          "id": "cable-lateral",
-          "name": "Cable lateral raise",
+          "id": "seated-db-shoulder-press",
+          "name": "Seated dumbbell shoulder press",
           "sets": 2,
-          "repMin": 8,
-          "repMax": 12,
-          "restSeconds": 90,
-          "incrementLb": 2.5,
-          "progression": "topSet",
+          "repMin": 5,
+          "repMax": 8,
+          "restSeconds": 150,
+          "incrementLb": 5,
           "alternatives": [
-            { "id": "lateral-raise-a", "name": "Dumbbell lateral raise" },
-            { "id": "machine-lateral", "name": "Machine lateral raise", "incrementLb": 5 }
+            { "id": "overhead-press", "name": "Barbell overhead press", "restSeconds": 180, "notes": "Safeties set. Stop 1–2 reps short." },
+            { "id": "machine-shoulder-press", "name": "Machine shoulder press" },
+            { "id": "smith-shoulder-press", "name": "Seated Smith shoulder press", "notes": "Set the safety stoppers." }
           ]
         },
         {
           "id": "preacher-curl",
           "name": "EZ-bar preacher curl",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
+          "sets": 2,
+          "repMin": 6,
+          "repMax": 10,
+          "restSeconds": 60,
           "incrementLb": 2.5,
           "progression": "topSet",
+          "notes": "Superset with dips: alternate the two, about 1:00 between.",
           "alternatives": [
             { "id": "ez-curl", "name": "EZ-bar curl" }
           ]
         },
         {
-          "id": "overhead-triceps-a",
-          "name": "Overhead cable triceps extension",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
-          "incrementLb": 2.5,
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "skullcrusher", "name": "Skullcrusher" }
-          ]
-        },
-        {
-          "id": "face-pull-a",
-          "name": "Face pull",
-          "sets": 1,
-          "repMin": 8,
-          "repMax": 12,
+          "id": "dips-or-cg-bench",
+          "name": "Dips or close-grip bench",
+          "sets": 2,
+          "repMin": 6,
+          "repMax": 10,
           "restSeconds": 60,
-          "incrementLb": 2.5,
-          "progression": "topSet"
+          "incrementLb": 5,
+          "progression": "topSet",
+          "notes": "Superset with preacher curls. Use an assisted dip machine if needed.",
+          "alternatives": [
+            { "id": "jm-press", "name": "JM press" }
+          ]
         }
       ]
     },
     {
       "id": "lower",
       "name": "Lower",
-      "focus": "Hamstrings & glutes",
-      "notes": "Warm up, then every working set to technical failure. Set 2 is a back-off.",
+      "focus": "Strength · Squat & hinge",
+      "notes": "Strength day. Ramp up, then 3 straight sets at the same weight, stopping 1–2 reps short of failure (RPE 8–9). Add weight once every set hits the top of the range.",
       "exercises": [
         {
+          "id": "back-squat",
+          "name": "Back squat",
+          "sets": 3,
+          "repMin": 3,
+          "repMax": 6,
+          "restSeconds": 210,
+          "incrementLb": 10,
+          "notes": "Safety pins set. Stop 1–2 reps short.",
+          "alternatives": [
+            { "id": "smith-squat", "name": "Smith squat", "notes": "Set the safety stoppers." },
+            { "id": "belt-squat", "name": "Belt squat" }
+          ]
+        },
+        {
           "id": "hinge-b",
-          "name": "Romanian or stiff-leg deadlift",
-          "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "name": "Romanian deadlift",
+          "sets": 3,
+          "repMin": 4,
+          "repMax": 6,
           "restSeconds": 180,
           "incrementLb": 10,
-          "progression": "topSet",
-          "notes": "Stop 1 rep short of failure. Back stays flat.",
+          "notes": "Stop 1–2 reps short. Back stays flat.",
           "alternatives": [
             { "id": "db-rdl", "name": "Dumbbell RDL", "incrementLb": 5 },
             { "id": "smith-rdl", "name": "Smith RDL" }
@@ -420,52 +366,14 @@
           "id": "seated-leg-curl",
           "name": "Seated leg curl",
           "sets": 2,
-          "repMin": 5,
-          "repMax": 9,
+          "repMin": 6,
+          "repMax": 10,
           "restSeconds": 90,
           "incrementLb": 5,
           "progression": "topSet",
           "alternatives": [
-            { "id": "lying-leg-curl", "name": "Lying leg curl" }
+            { "id": "lying-leg-curl-b", "name": "Lying leg curl" }
           ]
-        },
-        {
-          "id": "bulgarian-or-lunge",
-          "name": "Bulgarian split squat",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 120,
-          "incrementLb": 5,
-          "laterality": "per_side",
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "smith-split-squat", "name": "Smith split squat" },
-            { "id": "walking-lunge", "name": "Walking lunge" }
-          ]
-        },
-        {
-          "id": "leg-press",
-          "name": "Leg press",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 150,
-          "incrementLb": 10,
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "hack-squat", "name": "Hack squat" }
-          ]
-        },
-        {
-          "id": "leg-extension-a",
-          "name": "Leg extension",
-          "sets": 1,
-          "repMin": 5,
-          "repMax": 9,
-          "restSeconds": 90,
-          "incrementLb": 5,
-          "progression": "topSet"
         },
         {
           "id": "seated-calf",
@@ -507,7 +415,10 @@
       { "id": "face-pull-b", "name": "Face pull" },
       { "id": "shrug", "name": "Dumbbell shrug" },
       { "id": "hack-or-goblet", "name": "Hack squat or goblet squat" },
-      { "id": "leg-extension-b", "name": "Leg extension" }
+      { "id": "leg-extension-b", "name": "Leg extension" },
+      { "id": "bulgarian-or-lunge", "name": "Bulgarian split squat" },
+      { "id": "smith-split-squat", "name": "Smith split squat" },
+      { "id": "walking-lunge", "name": "Walking lunge" }
     ]
   }
 }
