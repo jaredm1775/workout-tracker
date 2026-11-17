@@ -10,20 +10,6 @@
       "notes": "Size day. Warm up, then every working set to technical failure. Set 2 is a back-off.",
       "exercises": [
         {
-          "id": "flat-machine-press",
-          "name": "Flat machine press",
-          "sets": 2,
-          "repMin": 8,
-          "repMax": 12,
-          "restSeconds": 150,
-          "incrementLb": 5,
-          "progression": "topSet",
-          "alternatives": [
-            { "id": "flat-db-press", "name": "Flat dumbbell press" },
-            { "id": "smith-flat-press", "name": "Flat Smith press", "notes": "Set the safety stoppers." }
-          ]
-        },
-        {
           "id": "incline-smith-press",
           "name": "Incline Smith press",
           "sets": 2,
@@ -37,6 +23,20 @@
             { "id": "incline-db-press", "name": "Incline dumbbell press" },
             { "id": "incline-machine-press", "name": "Incline machine press" },
             { "id": "incline-press-b", "name": "Incline barbell press (safeties)", "notes": "Stop 1 rep short of failure." }
+          ]
+        },
+        {
+          "id": "flat-machine-press",
+          "name": "Flat machine press",
+          "sets": 2,
+          "repMin": 8,
+          "repMax": 12,
+          "restSeconds": 150,
+          "incrementLb": 5,
+          "progression": "topSet",
+          "alternatives": [
+            { "id": "flat-db-press", "name": "Flat dumbbell press" },
+            { "id": "smith-flat-press", "name": "Flat Smith press", "notes": "Set the safety stoppers." }
           ]
         },
         {

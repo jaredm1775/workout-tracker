@@ -63,8 +63,8 @@ The app's "Next" chip is always the day after your most recently finished sessio
 
 | Exercise | Sets × reps | Rest | Swaps |
 |---|---|---:|---|
-| Flat machine press | 2 × 8–12 | 2:30 | Flat DB press, flat Smith press |
 | Incline Smith press | 2 × 8–12 | 2:30 | Incline DB, incline machine, incline barbell (safeties) |
+| Flat machine press | 2 × 8–12 | 2:30 | Flat DB press, flat Smith press |
 | Machine chest fly | 1 × 10–15 | 1:30 | Pec deck, cable fly |
 | Cable lateral raise | 2 × 12–15 | 1:15 | DB lateral, machine lateral |
 | Overhead cable triceps extension | 2 × 10–15 | 1:30 | Skullcrusher |
@@ -150,8 +150,8 @@ Then keep alternating Block 1 and Block 2.
 
 | Day | Block 1 lift | Block 2 lift |
 |---|---|---|
-| Push | Flat machine press | Flat dumbbell press |
 | Push | Incline Smith press | Incline dumbbell press |
+| Push | Flat machine press | Flat dumbbell press |
 | Push | Machine chest fly | Cable fly |
 | Push | Cable lateral raise | Machine lateral raise |
 | Push | Overhead cable triceps extension | Skullcrusher |
@@ -184,7 +184,7 @@ These stay the same every block: leg extension, lying leg curl on Legs, hip addu
 ## What changed (Nov 2026)
 
 - Push/Pull/Legs moved to size work (8–15 reps), and Upper/Lower to strength work (3–6 reps, RPE 8–9).
-- Removed same-day repeats: one row on Pull, one squat pattern on Legs. Single-arm cable row, leg press and the Upper incline press are now swaps or have been dropped. Push keeps two presses, flat before incline, with the fly cut to 1 set.
+- Removed same-day repeats: one row on Pull, one squat pattern on Legs. Single-arm cable row, leg press and the Upper incline press are now swaps or have been dropped. Push keeps two presses, incline Smith first and then the flat machine press, with the fly cut to 1 set.
 - The heaviest lift comes first each day: bench before shoulder press, squat before RDL.
 - Barbell bench, squat and RDL are back for the strength days (with safeties).
 - Added 8-week block rotation with a Block 2 swap list.
