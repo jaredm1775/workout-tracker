@@ -175,8 +175,8 @@ var WATCH_DAYS = [
   { id: "push-a", name: "Push", focus: "Chest", lift: "Incline Smith press" },
   { id: "pull-a", name: "Pull", focus: "Back width", lift: "Wide-grip lat pulldown" },
   { id: "legs-a", name: "Legs", focus: "Quads", lift: "Hack squat" },
-  { id: "upper", name: "Upper", focus: "Shoulders & back", lift: "Incline machine press" },
-  { id: "lower", name: "Lower", focus: "Hamstrings & glutes", lift: "Romanian or stiff-leg deadlift" },
+  { id: "upper", name: "Upper", focus: "Bench & pull-up", lift: "Barbell bench press" },
+  { id: "lower", name: "Lower", focus: "Squat & hinge", lift: "Back squat" },
 ];
 
 // The small reply the Garmin face shows. `today` is the watch's local date (yyyy-MM-dd),
