@@ -35,9 +35,25 @@ function setup() {
   var blank = ss.getSheetByName("Sheet1");
   if (blank && blank.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(blank);
   Logger.log("Sync password: " + token);
+  // A separate read-only password for the Garmin face. It can only fetch the watch summary.
+  var watchToken = props.getProperty("WATCH_TOKEN");
+  if (!watchToken) {
+    watchToken = Utilities.getUuid().replace(/-/g, "");
+    props.setProperty("WATCH_TOKEN", watchToken);
+  }
+  Logger.log("Watch password: " + watchToken);
 }
 
-function doGet() {
+// The Garmin face uses GET, because the watch does not follow Google's redirect after a POST.
+function doGet(e) {
+  var params = (e && e.parameter) || {};
+  if (params.action === "watch") {
+    var watchToken = PropertiesService.getScriptProperties().getProperty("WATCH_TOKEN");
+    if (!watchToken || params.token !== watchToken) {
+      return json_({ ok: false, error: "Wrong watch password" });
+    }
+    return json_(watchSummary_(String(params.today), String(params.profile || "jared")));
+  }
   return json_({ ok: true, app: "workout-tracker-sync" });
 }
 
@@ -47,6 +63,13 @@ function doPost(e) {
     body = JSON.parse(e.postData.contents);
   } catch (err) {
     return json_({ ok: false, error: "Body is not JSON" });
+  }
+  if (body.action === "watch") {
+    var watchToken = PropertiesService.getScriptProperties().getProperty("WATCH_TOKEN");
+    if (!watchToken || body.token !== watchToken) {
+      return json_({ ok: false, error: "Wrong watch password" });
+    }
+    return json_(watchSummary_(String(body.today), String(body.profile || "jared")));
   }
   var token = PropertiesService.getScriptProperties().getProperty("SYNC_TOKEN");
   if (!token || body.token !== token) {
@@ -145,6 +168,102 @@ function restore_() {
     workouts: Object.keys(workouts).map(function (id) { return workouts[id]; }),
     milestones: milestones,
   };
+}
+
+// Session order and first lifts from data/jared/program.json. Keep in step with that file.
+var WATCH_DAYS = [
+  { id: "push-a", name: "Push", focus: "Chest", lift: "Incline Smith press" },
+  { id: "pull-a", name: "Pull", focus: "Back width", lift: "Wide-grip lat pulldown" },
+  { id: "legs-a", name: "Legs", focus: "Quads", lift: "Hack squat" },
+  { id: "upper", name: "Upper", focus: "Shoulders & back", lift: "Incline machine press" },
+  { id: "lower", name: "Lower", focus: "Hamstrings & glutes", lift: "Romanian or stiff-leg deadlift" },
+];
+
+// The small reply the Garmin face shows. `today` is the watch's local date (yyyy-MM-dd),
+// because the script's time zone may not match the watch's.
+function watchSummary_(today, profile) {
+  var ss = SpreadsheetApp.getActive();
+  var finished = readRows_(sheetFor_(ss, "Workouts"), "Workouts").filter(function (row) {
+    return row.profile === profile && row.finishedAt;
+  }).sort(function (a, b) {
+    return String(a.finishedAt).localeCompare(String(b.finishedAt));
+  });
+  var last = finished.length ? finished[finished.length - 1] : null;
+
+  // Same rule as suggestedDayId in src/progression.ts.
+  var lastIndex = -1;
+  WATCH_DAYS.forEach(function (day, index) {
+    if (last && day.id === String(last.dayId)) lastIndex = index;
+  });
+  var next = WATCH_DAYS[lastIndex === -1 ? 0 : (lastIndex + 1) % WATCH_DAYS.length];
+
+  var status = "train";
+  if (last && String(last.date) === today) {
+    status = "done";
+  } else if (last && String(last.date) === shiftDateKey_(today, -1) &&
+      (String(last.dayId) === "legs-a" || String(last.dayId) === "lower")) {
+    status = "rest";
+  }
+
+  var todayParts = today.split("-").map(Number);
+  var weekday = new Date(Date.UTC(todayParts[0], todayParts[1] - 1, todayParts[2])).getUTCDay();
+  var weekStart = shiftDateKey_(today, -weekday);
+  var week = finished.filter(function (row) {
+    return String(row.date) >= weekStart && String(row.date) <= today;
+  }).length;
+
+  // Swaps stick in the app, so the lift comes from the last time this session was done.
+  var lift = next.lift;
+  var lastTop = "";
+  var previous = finished.filter(function (row) { return String(row.dayId) === next.id; }).pop();
+  if (previous) {
+    var top = readRows_(sheetFor_(ss, "Sets"), "Sets").filter(function (row) {
+      return row.workoutId === previous.workoutId && Number(row.set) === 1;
+    }).sort(function (a, b) {
+      return String(a.completedAt).localeCompare(String(b.completedAt));
+    })[0];
+    if (top) {
+      lift = String(top.exercise);
+      lastTop = top.weight + " x " + top.reps;
+    }
+  }
+
+  var goal = readRows_(sheetFor_(ss, "Milestones"), "Milestones").filter(function (row) {
+    return row.profile === profile && !(row.done === true || String(row.done).toUpperCase() === "TRUE");
+  })[0];
+
+  return {
+    ok: true,
+    status: status,
+    day: next.name,
+    focus: next.focus,
+    lift: lift,
+    last: lastTop,
+    week: week,
+    goal: goal ? watchGoal_(goal) : "",
+  };
+}
+
+var WATCH_LIFT_NAMES = {
+  "Barbell bench press": "Bench",
+  "Overhead press": "OHP",
+  "Back squat": "Squat",
+  "Romanian deadlift": "RDL",
+  "Barbell or chest-supported row": "Row",
+};
+
+// The face fits about 18 characters here, so lift names are shortened and long targets stand alone.
+function watchGoal_(goal) {
+  var target = String(goal.target).replace("×", "x").replace(" lb", "");
+  var lift = WATCH_LIFT_NAMES[goal.lift];
+  var text = lift ? lift + " " + target : target.split(" or ")[0];
+  return text.slice(0, 18).trim();
+}
+
+function shiftDateKey_(key, days) {
+  var parts = key.split("-").map(Number);
+  var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + days));
+  return date.toISOString().slice(0, 10);
 }
 
 function readRows_(sheet, name) {
